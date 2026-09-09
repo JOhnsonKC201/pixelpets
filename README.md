@@ -175,7 +175,7 @@ covered in the [development guide](docs/development.md).
 
 | Action | What it does |
 |--------|--------------|
-| **Drag** the cat (hold left) | Stretches it like mochi; it drops where you release |
+| **Drag** the cat (hold left) | Stretches it like mochi; it settles onto the bottom line where you release, and that spot becomes its new home |
 | **Right-click** the cat | Cycles to the next coat pattern |
 | **Tap** the cat | A quick pet: happy eyes, hearts, a chirp |
 | **Rest cursor on its head** | Happy eyes, floating hearts, and a purr |

@@ -703,6 +703,11 @@ function rebuildTrayMenu() {
     { label: 'Rest corner', submenu: [
       { label: 'Bottom-left', type: 'radio', checked: !!(cfg && cfg.restSide === 'left'), click: () => persistAndBroadcast({ ...cfg, restSide: 'left' }) },
       { label: 'Bottom-right', type: 'radio', checked: !(cfg && cfg.restSide === 'left'), click: () => persistAndBroadcast({ ...cfg, restSide: 'right' }) },
+      { type: 'separator' },
+      // Dragging the pet somewhere makes that spot its home, and the radios above cannot undo
+      // that on their own: re-picking the corner already selected changes no setting, so the
+      // renderer never hears about it. This is the way back.
+      { label: 'Send it home (forget the drop spot)', click: () => sendAction('home') },
     ] },
     { label: 'Stay on the floor', type: 'checkbox', checked: !(cfg && cfg.floorLock === false), click: () => persistAndBroadcast({ ...cfg, floorLock: !(cfg && cfg.floorLock !== false) }) },
     { label: onBattery ? 'Low power mode (on battery)' : 'Low power mode', type: 'checkbox', checked: effectiveLowPower(), click: () => persistAndBroadcast({ ...cfg, lowPower: !(cfg && cfg.lowPower) }) },
@@ -1168,10 +1173,13 @@ onSecure('settings:testSound', () => {
 // place that knows a dog's version of "go chase something" is its ball rather than
 // a butterfly. Allow-listed rather than forwarded blind, so the channel cannot
 // become a way to poke arbitrary renderer state.
-const PET_ACTIONS = new Set(['companion', 'give', 'play', 'stretch', 'groom', 'loaf']);
+const PET_ACTIONS = new Set(['companion', 'give', 'play', 'stretch', 'groom', 'loaf', 'home']);
+// A function declaration rather than a const, so the tray menu built further up this file
+// can call it: the tray is the only surface that reaches 'home' with settings closed.
+function sendAction(id) { if (win && !win.isDestroyed()) win.webContents.send('action', id); }
 onSecure('settings:action', (_e, id) => {
   if (!PET_ACTIONS.has(id)) return;
-  if (win && !win.isDestroyed()) win.webContents.send('action', id);
+  sendAction(id);
 });
 handleSecure('email:passwordInfo', () => mail.passwordInfo());
 handleSecure('email:setPassword', (_e, pw) => mail.setPassword(pw));

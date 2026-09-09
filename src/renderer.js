@@ -412,10 +412,20 @@ const HOME_MARGIN_R = SW / 2 + 80;   // right home sits this far in from the rig
 const HOME_MARGIN_L = SW / 2 + 20;   // left home sits this far in from the left edge
 const FLOOR_GAP = 0;                 // px the feet rest ABOVE the taskbar line (tunable in one place; 0 = flush)
 const SMALL_MARGIN = 4;              // resting margin from the very screen bottom when there's NO bottom taskbar (top/side/auto-hide)
+const HOME_ROAM_FRAC = 0.18;         // a stroll from a chosen drop spot reaches this fraction of the span the pet is allowed
+const HOME_ROAM_MIN = 120;           // ...but never less than about a body and a quarter, or the pet reads as frozen
 // Home corner: which bottom side the cat spawns at and drifts back to. Defaults to
 // the right (clears the tray/clock); set restSide:'left' to keep it bottom-left.
 function restSideLeft() { return !!(config && config.restSide === 'left'); }
-function homeX() { return zoneClampX(restSideLeft() ? HOME_MARGIN_L : viewW - HOME_MARGIN_R); }
+// ...unless you have put the pet down somewhere yourself, which outranks the corner.
+// `homeFrac` (read next to `pos` further down) is the whole point of this change: every
+// system that re-homes the pet - the launch restore, the floor re-pin, the display-change
+// rescue, work mode, the dog carrying its ball back - already asks homeX() where home is,
+// so teaching this one function about the drop spot moves all of them at once.
+function homeAnchored() { return homeFrac !== null; }
+function setHomeAnchor(x) { homeFrac = clamp(x / Math.max(1, viewW), 0, 1); localStorage.setItem('homeFrac', String(homeFrac)); }
+function clearHomeAnchor() { homeFrac = null; localStorage.removeItem('homeFrac'); }
+function homeX() { return zoneClampX(homeAnchored() ? homeFrac * viewW : (restSideLeft() ? HOME_MARGIN_L : viewW - HOME_MARGIN_R)); }
 function zoneClampX(v) {
   if (!playArea) return clamp(v, EDGE_L, viewW - EDGE_R);
   const a = playArea.x * viewW + EDGE_L, b = (playArea.x + playArea.w) * viewW - EDGE_R;
@@ -1155,6 +1165,16 @@ let startleT0 = -1, startleUntil = 0, startleMode = 'creep', startleFrom = null,
 let startleSoundUntil = -9999;   // the growl's own, much longer gap - see the startle block
 let zoomiesT0 = -1, prevBand = '', spinUntil = 0;
 
+// Where you last put the pet down, as a FRACTION of the window width rather than a pixel
+// column: main resizes the overlay to the primary display on every resolution, DPI and
+// monitor change (see refit), so an absolute x saved on one screen either strands the pet
+// against an edge of the next or lands it somewhere it has never been. null = you have not
+// chosen a spot, so home is restSide's corner. Lives here beside `pos` because it is pet
+// state set by a gesture, not a preference set by a control.
+let homeFrac = null;
+try { const v = parseFloat(localStorage.getItem('homeFrac')); if (Number.isFinite(v)) homeFrac = clamp(v, 0, 1); } catch (e) { /* ignore */ }
+if (SHOT || SHEET) homeFrac = null;   // previews and the contact sheet place the pet themselves
+
 let pos;
 try { pos = JSON.parse(localStorage.getItem('pos')); } catch (e) { /* ignore */ }
 if (SHOT) pos = { x: 130, y: 250 };
@@ -1168,9 +1188,13 @@ pos.x = zoneClampX(pos.x); pos.y = zoneClampY(pos.y);
 // Start each launch resting on the taskbar line (keep the remembered X, snap Y to
 // the baseline) so the cat always begins the day on the same line, never mid-screen.
 if (!SHOT) pos.y = restingY();
-// Don't let the home spot jam against the clock: when there's no custom play area,
-// pull a far-right-parked cat in from the edge on launch (only ever moves it left).
-if (!SHOT && !playArea) pos.x = restSideLeft() ? Math.max(pos.x, homeX()) : Math.min(pos.x, homeX());
+// Don't let the DEFAULT home jam against the clock: with no chosen spot and no custom play
+// area, pull a far-right-parked cat in from the edge on launch (only ever moves it left).
+// A spot you put the pet down on yourself is honoured as-is: HOME_MARGIN_R exists to keep
+// the pet off the tray clock in the corner it picked for you, and it has no business
+// second-guessing a corner you picked for it.
+if (!SHOT && homeAnchored()) pos.x = homeX();
+else if (!SHOT && !playArea) pos.x = restSideLeft() ? Math.max(pos.x, homeX()) : Math.min(pos.x, homeX());
 let head = { x: pos.x, y: pos.y - SH, vx: 0, vy: 0 };
 let feet = { x: pos.x, y: pos.y, vx: 0, vy: 0 };
 let grabbing = false;
@@ -1238,6 +1262,11 @@ function runAction(id) {
     case 'stretch': clearBusy(); stretchT0 = t; nextStretch = t + STRETCH_INTERVAL; break;
     case 'groom': clearBusy(); groomUntil = t + 2600 + Math.random() * 1400; break;
     case 'loaf': clearBusy(); loafUntil = t + 4000 + Math.random() * 4000; break;
+    // The only way back to a plain corner once you have put the pet down somewhere. Re-picking
+    // the corner you are already on cannot do it: a <select> fires no change event when the
+    // value does not move, and the tray radio's broadcast is ignored because restSide did not
+    // change. Clear BEFORE aiming, so homeX() below reads the corner and not the old spot.
+    case 'home': clearBusy(); clearHomeAnchor(); roamFrom = { x: pos.x, y: pos.y }; roamTo = { x: homeX(), y: floorLockOn() ? restingY() : pos.y }; roamDur = 1400; roamUntil = t + roamDur; nextRoam = t + 12000; break;
     default: return;   // unknown id: do nothing rather than guess
   }
   resumeRaf();
@@ -1280,6 +1309,7 @@ if (window.cat) {
     config = c;
     // Rest-side toggled live -> stroll over to the newly chosen home corner.
     if (prevSide !== null && prevSide !== c.restSide && !SHOT && !grabbing) {
+      clearHomeAnchor();   // reaching for the corner setting is you saying "forget where I put it"; homeX() is a corner again from here
       const now = performance.now();
       roamFrom = { x: pos.x, y: pos.y };
       roamTo = { x: homeX(), y: floorLockOn() ? restingY() : pos.y };
@@ -1892,6 +1922,37 @@ function updateDogVitals(t, dt) {
 
 function restSprings() { head = { x: pos.x, y: pos.y - SH, vx: 0, vy: 0 }; feet = { x: pos.x, y: pos.y, vx: 0, vy: 0 }; }
 function persistPos() { localStorage.setItem('pos', JSON.stringify({ x: pos.x, y: pos.y })); }
+// Letting go of the pet. Putting it down MOVES ITS HOME, which is the fix for a drop that
+// looked like it was being ignored: the drop used to write pos and nothing else, so the
+// corner the pet was born in still owned every system that re-homes it. The wander picker
+// aimed back at that corner about ten seconds later, work mode marched it there, and a
+// restart put it back. Split out of the mouseup listener because the listener is
+// unreachable from the vm test harness (scripts/overlay-vm.js stubs addEventListener), so
+// the drop was only ever "tested" by hand-writing pos.x, which pins nothing at all.
+function dropAt(x) { pos.x = zoneClampX(x); pos.y = restingY(); setHomeAnchor(pos.x); persistPos(); }
+// How far a stroll may take the pet from a spot you chose. A share of the span it is
+// allowed rather than a flat pixel count, so a narrow play area gets short strolls and
+// the whole screen gets long ones, with a floor so it never reads as frozen.
+function homeRoamRadius() { const span = playArea ? playArea.w * viewW : viewW; return Math.max(HOME_ROAM_MIN, span * HOME_ROAM_FRAC); }
+// Where the next wander aims. Split out of the roam block so the distribution can be
+// sampled directly in a test, rather than driving frames for five minutes and hoping.
+function roamTargetX() {
+  if (homeAnchored()) {
+    // The same r*r spread, but mirrored SYMMETRICALLY around the spot you chose rather than
+    // pushed against one edge. The edge skew is exactly what walked the pet back across the
+    // screen about ten seconds after every drop. Mirroring keeps the short-stroll feel
+    // (E[r*r] is 0.25, so it drifts about a cat's width on average and only rarely reaches
+    // the full radius) while leaving no net pull either way, so the pet mooches around its
+    // patch and drifts back instead of creeping steadily off in one direction.
+    const r = Math.random() * Math.random();
+    return homeX() + (Math.random() < 0.5 ? -r : r) * homeRoamRadius();
+  }
+  // No chosen spot: the original corner skew, untouched. r*r clusters near 0, so the pet
+  // hangs out on its preferred side while still roaming the whole width now and then.
+  const skew = Math.random() * Math.random();
+  const frac = restSideLeft() ? skew : 1 - skew;
+  return playArea ? (playArea.x + frac * playArea.w) * viewW : frac * viewW;
+}
 
 // ---- main loop --------------------------------------------------------------
 // ---- butterfly visitor (periodic): flits in, pesters the cat, leaves ---------
@@ -2560,11 +2621,7 @@ function draw(t) {
       }
     } else if (roamIdle && roamUntil < t && t > nextRoam) {
       roamFrom = { x: pos.x, y: pos.y };
-      // Bias the wander target toward the home corner (restSide): r*r clusters near 0,
-      // so the cat tends to hang out on its preferred side while still roaming widely.
-      const skew = Math.random() * Math.random();
-      const frac = restSideLeft() ? skew : 1 - skew;
-      const rx = playArea ? (playArea.x + frac * playArea.w) * viewW : frac * viewW;
+      const rx = roamTargetX();
       // Floor-lock keeps strolls on the ground line (left/right only); otherwise pick
       // a vertical target inside the play area / lower screen.
       const ry = floorLockOn() ? restingY() : (playArea ? (playArea.y + Math.random() * playArea.h) * viewH : viewH * 0.45 + Math.random() * viewH * 0.5);
@@ -2973,9 +3030,13 @@ window.addEventListener('mousedown', (e) => {
   downAt = performance.now(); downX = cursor.x; downY = cursor.y;
   sendHot(cursor.x - SW, cursor.y - SH, SW * 2, SH * 2, true);
 });
-window.addEventListener('mouseup', () => {
+window.addEventListener('mouseup', (e) => {
   if (settingArea) { if (areaDragStart) finishSetArea(false); return; }
   if (!grabbing) return;
+  // Take the release point off the event, the way mousedown already does. `cursor` is also
+  // written by main's polling loop, so it can be a tick stale, and a tick at the end of a
+  // fast drag is a long way; this also sharpens the tap test on the next line.
+  if (e && Number.isFinite(e.clientX)) { cursor.x = e.clientX; cursor.y = e.clientY; }
   grabbing = false;
   const tap = performance.now() - downAt < 220 && Math.hypot(cursor.x - downX, cursor.y - downY) < 6;
   if (tap) {
@@ -2984,8 +3045,12 @@ window.addEventListener('mouseup', () => {
     if (config && config.soundOn) playChirp();
     restSprings();
   } else {
-    pos.x = zoneClampX(head.x); pos.y = restingY();   // land on the resting line (honours floor-lock + play area)
-    persistPos();
+    // Land on the pointer, not on head.x. head.x is an underdamped spring chasing the cursor
+    // (HK/HD 0.45, damping ratio about 0.33), so it lags tens of pixels behind on a fast drag
+    // across the screen and overshoots on a slow one: the cat used to land visibly short of
+    // where you let go. The springs then ease the body onto the new pos over about half a
+    // second, so the squash-and-bounce settle looks exactly as it always did.
+    dropAt(cursor.x);
   }
   resumeRaf();
 });

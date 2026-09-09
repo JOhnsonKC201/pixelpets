@@ -74,9 +74,13 @@ function mockEl() {
 // opts.seed picks the PRNG stream behind the overlay's Math.random (null = real
 // randomness); every context gets a fresh stream, so load order cannot leak between
 // two overlays in the same test file.
+// opts.store seeds localStorage BEFORE the scripts run, which is the only way to reach
+// the restore-on-launch path: the position and the drop spot are read by module-level
+// code, so a test that sets them afterwards is testing a different branch than the one
+// every user hits every morning.
 function loadOverlay(opts = {}) {
   const seed = opts.seed === undefined ? DEFAULT_SEED : opts.seed;
-  const store = {};
+  const store = Object.assign({}, opts.store || {});
   const images = [];
   const handlers = {};
 

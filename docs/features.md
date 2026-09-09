@@ -17,7 +17,7 @@ to your cursor, to your typing, and to its own internal mood.
 
 | Interaction | What the cat does |
 |-------------|-------------------|
-| **Drag it** | Stretches like mochi (head and feet stay solid while the body thins), then squashes and bounces back. Shake it side to side and it wobbles like jello with a startled mrrp. It stays where you drop it. |
+| **Drag it** | Stretches like mochi (head and feet stay solid while the body thins), then squashes and bounces back. Shake it side to side and it wobbles like jello with a startled mrrp. It settles onto the bottom line right where you let go, and that spot becomes home: it still wanders, but around the spot you picked rather than back to the corner it started in. |
 | **Pet its head** | Squeezes its eyes shut, wiggles, floats little hearts, and purrs. The squint holds through the whole stroke, not just when your hand stops moving. |
 | **Touch its body** | Squints just as happily, leans and arches into your hand, tail up, trilling. |
 | **Tap it** | A quick pet: happy eyes, hearts, a chirp. |
@@ -110,6 +110,14 @@ but only the cat itself is interactive. It stays on top of every app (it
 re-asserts top-most, even over fullscreen windows), and you can confine it to a
 play area by picking a tray preset or drawing one with the mouse (tray > Set
 play area). It starts at login by registering itself in Windows startup.
+
+Drag the pet anywhere along the bottom and it stays on that side: the spot you
+put it down on becomes home, so wandering, work mode, a restart and a monitor
+change all bring it back there instead of the corner it started in. The spot is
+kept as a fraction of the screen, so it survives a resolution change. To go back
+to a plain corner, pick a rest corner in Settings, or use Send it home (Settings
+> make it do something, or tray > Rest corner).
+
 
 ## Stay on track
 
