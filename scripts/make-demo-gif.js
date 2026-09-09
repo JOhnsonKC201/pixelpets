@@ -177,10 +177,13 @@ function buildPoses(i) {
 }
 function sitFor(i) { return buildSprite(24, 30, () => composeSit(buildFor(i))); }
 let SP = buildPoses(0);   // default: Orange Tabby (the demo recipe)
-// The hero/gallery coat is the DEFAULT coat, so the storefront shows what a new
-// install actually opens on. It also ships painted climb art, which the scroll
-// clip needs.
-const TUX = Math.max(0, S.PATTERNS.findIndex((p) => p.name === 'Mackerel Tabby'));
+// The hero/gallery coat: Tuxedo, which is what the launch reel (scripts/make-reel.js) and
+// the marketing site (site/cat-live.js) already star. The README media was the odd one out,
+// so the storefront advertised a different cat depending on which page you landed on. Tuxedo
+// ships painted rope-climb art, which the scroll clip depends on, and it is the pet the
+// author actually runs. It is deliberately NOT the out-of-box coat (that is Mackerel Tabby,
+// see src/config.js), so the README says which coat it shows and how to change it.
+const TUX = Math.max(0, S.PATTERNS.findIndex((p) => p.name === 'Tuxedo'));
 
 // ---- canvas + raster helpers ------------------------------------------------
 let W = 480, H = 340, PX = 6;            // output size (mutable per recipe); PX = output px per grid cell
@@ -486,8 +489,10 @@ function blitImage(buf, img, dx, dy, dw, dh) {
 let _climb = null;
 function climbFrames() {
   if (_climb) return _climb;
-  // Same coat the rest of the media stars, and the one a new install opens on.
-  const dir = path.join(__dirname, '..', 'assets', 'climb', 'mackerel-tabby');
+  // Painted raster art, so this one cannot be recoloured from the palette like every other
+  // clip: it has to be the folder matching the TUX coat above, or the scroll clip stars a
+  // different cat than the rest of the media. Only four coats have painted climb art.
+  const dir = path.join(__dirname, '..', 'assets', 'climb', 'tuxedo');
   _climb = {};
   for (const n of ['idle', 'up1', 'up2', 'down1', 'down2']) _climb[n] = decodePng(path.join(dir, `${n}.png`));
   return _climb;
