@@ -171,7 +171,7 @@ chase down and bring back.
 | **Type** (any app) | Front-paw kneading; fast typing overheats it |
 | **Scroll** (any app) | Rears up and swipes at a blowing leaf, or climbs a yarn rope on the four coats that ship painted climb art |
 | **Double-click** it | Opens Settings (name, timers, reminders, coat) |
-| **Tray icon** | Settings, Start break now, coat picker, play area, sound and hunt and mood toggles, Quit |
+| **Tray icon** | Settings, Start break now, Quick tools, Keep screen awake, Lock screen, running timers, Clipboard history and Eye-rest toggles, coat picker, play area, sound and hunt and mood toggles, Quit |
 
 ### Quick Tools
 
@@ -179,7 +179,7 @@ One box for the small things you do all day. Type, press Enter:
 
 | Type | What happens |
 |------|--------------|
-| `gmail`, `projects` | Opens a site, folder or app you pinned in Settings > Tools |
+| part of a pinned name, e.g. `mail.google`, `projects` | Opens a site, folder or app you pinned in Settings > Tools |
 | `=12*7.5`, `5 km in mi`, `72 f to c` | Calculates or converts; Enter copies the answer |
 | `g how to center a div` | Searches the web (`ddg` and `b` work too) |
 | `note call the bank` | Adds a timestamped line to your notes file |
@@ -187,8 +187,9 @@ One box for the small things you do all day. Type, press Enter:
 | `10m tea`, `1h30m` | A timer the pet announces when it is up |
 | `snip`, `lock`, `awake` | Screen snip, lock the screen, keep the screen awake |
 
-Clipboard history (last 20 copies, memory only, skips passwords and keys), a low
-battery alert and 20-20-20 eye-rest nudges are switches in Settings > Tools.
+Clipboard history (last 20 copies, memory only, skips passwords and keys) and
+20-20-20 eye-rest nudges are opt-in switches in Settings > Tools, next to the low
+battery alert, which is on by default.
 [Everything Quick Tools does.](docs/features.md#quick-tools)
 
 Settings persist to `settings.json` in your per-user app-data folder
