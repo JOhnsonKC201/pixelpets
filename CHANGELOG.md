@@ -4,6 +4,12 @@ Notable changes to **pixelpets**. All art and sound are original/procedural (no 
 
 ## [Unreleased]
 
+### Quick Tools
+- **One box for everyday things.** Ctrl+Shift+Space (Cmd+Shift+Space on a Mac) or right-clicking the pet opens a keyboard-first launcher: pinned sites, folders and apps, a calculator and unit converter, web search, quick notes, today's to-dos (five at most, with a cheer when you finish one and one afternoon nudge), timers the pet announces, screen snip, lock screen and keep awake.
+- **Opt-in helpers.** Clipboard history (memory only, never saved, skips passwords and keys, cleared on lock and quit), a one-time low battery alert at 20%, and 20-20-20 eye-rest nudges. All in a new Settings > Tools tab.
+- **Right-click changed.** Right-click now opens Quick Tools. Shift+right-click still cycles the coat, and the tray coat menu is unchanged; turn "Right-click the pet opens it" off in Settings > Tools to get the old behaviour back.
+- **Boxed in on purpose.** The launcher is the one window that takes free typing, so it gets its own four IPC channels and is refused on every other one. It sends main a query and an index, never a URL, path or command, and main runs its own copy of the action. Shortcuts are checked against an allowlist when saved and again when opened, and only one file ever spawns a process, with fixed arguments and no shell.
+
 ### The drop spot
 - **Put the pet down and it stays put.** Dropping the cat on the far side of the screen held for about ten seconds. The wander target is skewed toward the rest corner (`r*r` clusters at one edge), so the first stroll after a drop walked the cat straight back across the screen to the corner it came from, and every stroll after that kept it there. Nothing else knew the pet had been moved either: every system that re-homes it (the launch restore, the floor re-pin, the display-change rescue, work mode, the dog carrying its ball back) asks one function where home is, and that function only ever knew about the corner setting. Where you let go is now home. It still wanders, but around the spot you picked, and it drifts back to it.
 - **It lands where the pointer is.** The drop committed the head spring's position, and that spring chases the cursor underdamped, so it lags on a fast drag and overshoots on a slow one: a quick throw across the screen put the cat tens of pixels from where you released it. It lands on the pointer now, and the springs ease the body onto it, so the squash-and-bounce settle looks the same.

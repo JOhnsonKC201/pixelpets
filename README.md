@@ -25,7 +25,7 @@ is synthesized live: there are no audio files at all.
 <img src="assets/hero-banner.gif" alt="pixelpets on your desktop: a tuxedo cat sits and watches your cursor, kneads the keyboard when you type, and purrs when you pet it" width="880" />
 
 <sub>Every frame is rendered from the same sprite the app draws with, not screen-captured. <a href="assets/hero-banner.mp4">MP4 version</a>.<br />
-The cat shown here is the <b>Tuxedo</b> coat; a new install opens on Mackerel Tabby, and right-clicking your pet cycles all 14.</sub>
+The cat shown here is the <b>Tuxedo</b> coat; a new install opens on Mackerel Tabby, and Shift+right-clicking your pet cycles all 14.</sub>
 
 <br />
 
@@ -163,7 +163,8 @@ chase down and bring back.
 | Action | What it does |
 |--------|--------------|
 | **Drag** your pet (hold left) | Stretches it like mochi; it settles onto the bottom line where you release, and that spot becomes its new home |
-| **Right-click** it | Cycles to the next coat |
+| **Right-click** it | Opens Quick Tools (Shift+right-click cycles the coat) |
+| **Ctrl+Shift+Space** (Cmd+Shift+Space on a Mac) | Opens Quick Tools from any app |
 | **Tap** it | A quick pet: happy eyes, hearts, a chirp |
 | **Rest cursor on its head** | Happy eyes, floating hearts, and a purr |
 | **Rest cursor on its body** | Leans and arches into your hand, tail up, trilling |
@@ -171,6 +172,24 @@ chase down and bring back.
 | **Scroll** (any app) | Rears up and swipes at a blowing leaf, or climbs a yarn rope on the four coats that ship painted climb art |
 | **Double-click** it | Opens Settings (name, timers, reminders, coat) |
 | **Tray icon** | Settings, Start break now, coat picker, play area, sound and hunt and mood toggles, Quit |
+
+### Quick Tools
+
+One box for the small things you do all day. Type, press Enter:
+
+| Type | What happens |
+|------|--------------|
+| `gmail`, `projects` | Opens a site, folder or app you pinned in Settings > Tools |
+| `=12*7.5`, `5 km in mi`, `72 f to c` | Calculates or converts; Enter copies the answer |
+| `g how to center a div` | Searches the web (`ddg` and `b` work too) |
+| `note call the bank` | Adds a timestamped line to your notes file |
+| `todo email the lab`, `done 1` | Today's to-dos, five at most; the pet cheers when you tick one off |
+| `10m tea`, `1h30m` | A timer the pet announces when it is up |
+| `snip`, `lock`, `awake` | Screen snip, lock the screen, keep the screen awake |
+
+Clipboard history (last 20 copies, memory only, skips passwords and keys), a low
+battery alert and 20-20-20 eye-rest nudges are switches in Settings > Tools.
+[Everything Quick Tools does.](docs/features.md#quick-tools)
 
 Settings persist to `settings.json` in your per-user app-data folder
 (`%APPDATA%/pixelpets/` on Windows, `~/Library/Application Support/pixelpets/` on

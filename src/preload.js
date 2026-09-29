@@ -32,4 +32,21 @@ contextBridge.exposeInMainWorld('cat', {
   quit: () => ipcRenderer.send('quit'),
   sheetImage: (dataUrl) => ipcRenderer.send('sheet:image', dataUrl),
   setAreaDone: (area) => ipcRenderer.send('setarea:done', area),
+  openLauncher: () => ipcRenderer.send('launcher:open'),
 });
+
+// Battery level for the Quick Tools low-battery alert. Electron's powerMonitor
+// knows WHETHER you are on battery but not how full it is; the web Battery API
+// does, and it lives here rather than in the 3000-line renderer. Desktops with no
+// battery report level 1 and charging, which never alerts. Main applies the rule
+// (tools/battery.js); this only reports changes.
+(async () => {
+  try {
+    if (!navigator.getBattery) return;
+    const b = await navigator.getBattery();
+    const report = () => ipcRenderer.send('battery', { level: b.level, charging: b.charging });
+    b.addEventListener('levelchange', report);
+    b.addEventListener('chargingchange', report);
+    report();
+  } catch (e) { /* no battery API: the alert simply never fires */ }
+})();

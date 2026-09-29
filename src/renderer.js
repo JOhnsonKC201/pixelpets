@@ -3070,8 +3070,12 @@ function cycleCoat() {
   if (window.cat && window.cat.setPattern) window.cat.setPattern(patternIndex); // sync tray + settings.json
   labelUntil = performance.now() + 1500;
 }
+// Right-click opens Quick Tools (the launcher window). Shift+right-click keeps the
+// old coat cycle, and the tray's coat menu always works, so nothing is lost.
 window.addEventListener('contextmenu', (e) => {
   e.preventDefault();
+  const launcherOnRightClick = !(config && config.tools && config.tools.rightClick === false);
+  if (launcherOnRightClick && !e.shiftKey && window.cat && window.cat.openLauncher) { window.cat.openLauncher(); return; }
   audio();
   cycleCoat();
 });

@@ -9,6 +9,8 @@ const path = require('path');
 const { PATTERN_NAMES } = require('./patterns');
 const { isSpecies, coatsFor, defaultCoatIndex } = require('./pets');
 const { MAX_THEMES } = require('./themes');
+const { normalizeShortcuts } = require('./tools/shortcuts');
+const { normalizeTodos } = require('./tools/todos');
 // A cat's coat index addresses ONE run of numbers: the built-in coats first, then
 // the user's custom coats, which is the order both pickers build (tray submenu in
 // main.js, dropdown in settings-renderer.js). Clamping at the last built-in coat
@@ -57,7 +59,25 @@ const DEFAULTS = {
   reminders: [],       // [{ id, hhmm: 'HH:MM', message, recur, days, lastFired }]
   email: { on: false, host: '', port: 993, user: '', secure: true, intervalMin: 5, vip: [] }, // IMAP unread alerts (app-password stored separately, encrypted); vip senders break through Focus Guard
   calendar: { on: false, icsUrl: '', leadMin: 10 }, // nudge before events from a secret .ics URL
+  // Quick Tools launcher (src/tools/). Clipboard history and eye-rest are opt-in;
+  // nothing the clipboard holds is ever written here.
+  tools: {
+    hotkey: 'CommandOrControl+Shift+Space',  // one of HOTKEYS, or 'off'
+    rightClick: true,     // right-click the pet opens the launcher (Shift+right-click still cycles the coat)
+    search: 'google',     // 'google' | 'duckduckgo' | 'bing'
+    clipboard: false,     // in-memory clipboard history
+    eyeRest: false,       // 20-20-20 nudge every 20 minutes
+    batteryAlert: true,   // speak up once at 20% while unplugged
+    todoNudge: '12:30',   // 'HH:MM' for the unfinished to-dos nudge, '' = off
+    shortcuts: [],        // [{ id, label, target }] validated by tools/shortcuts.js
+  },
+  todos: { day: '', items: [], nudged: '' },  // today's list, see tools/todos.js
 };
+
+// The launcher hotkeys offered in Settings. A fixed list rather than free text, so
+// a typo can never register something that swallows a key the user needs.
+const HOTKEYS = ['CommandOrControl+Shift+Space', 'CommandOrControl+Alt+Space', 'CommandOrControl+Shift+K', 'Alt+Space', 'off'];
+const SEARCH_ENGINES = ['google', 'duckduckgo', 'bing'];
 
 function filePath() {
   return path.join(app.getPath('userData'), 'settings.json');
@@ -160,6 +180,21 @@ function normalize(cfg) {
       if (url && !/^https?:\/\//i.test(url)) url = '';
       return { on: !!k.on, icsUrl: url, leadMin: clampInt(k.leadMin, 0, 1440, 10) };
     })(),
+    tools: (() => {
+      const t = (c.tools && typeof c.tools === 'object') ? c.tools : {};
+      const nudge = String(t.todoNudge == null ? '12:30' : t.todoNudge);
+      return {
+        hotkey: HOTKEYS.includes(t.hotkey) ? t.hotkey : HOTKEYS[0],
+        rightClick: t.rightClick === undefined ? true : !!t.rightClick,
+        search: SEARCH_ENGINES.includes(t.search) ? t.search : 'google',
+        clipboard: !!t.clipboard,
+        eyeRest: !!t.eyeRest,
+        batteryAlert: t.batteryAlert === undefined ? true : !!t.batteryAlert,
+        todoNudge: nudge === '' || HHMM.test(nudge) ? nudge : '12:30',
+        shortcuts: normalizeShortcuts(t.shortcuts),
+      };
+    })(),
+    todos: normalizeTodos(c.todos),
     reminders: reminders.reduce((out, r) => {
       if (!r || typeof r !== 'object') return out;
       const hhmm = String(r.hhmm || '');
@@ -231,4 +266,4 @@ function save(cfg) {
   return clean;
 }
 
-module.exports = { DEFAULTS, load, save, normalize, migrate, makeId, coatAfterThemeRemoval, filePath };
+module.exports = { DEFAULTS, HOTKEYS, SEARCH_ENGINES, load, save, normalize, migrate, makeId, coatAfterThemeRemoval, filePath };
