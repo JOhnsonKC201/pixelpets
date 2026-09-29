@@ -138,8 +138,8 @@ today's to-dos, running timers and a few one-press actions.
 - **Calculator and units.** `=12*7.5`, `sqrt(2)/2`, `5 km in mi`, `3 GB in MiB`,
   `72 f to c`. Enter copies the answer. It is a real parser, not `eval`, so
   nothing typed there can run as code.
-- **Search.** `g`, `ddg` or `b` plus your words. Anything the launcher does not
-  recognise also offers a search, and to save it as a note.
+- **Search.** `g`, `ddg` or `b` plus your words. When nothing pinned or listed
+  matches what you typed, the launcher offers a search, and to save it as a note.
 - **Quick notes.** `note ...` appends a timestamped line to `notes.md` in your
   app-data folder; `open notes` opens it.
 - **Today's to-dos.** `todo ...` adds one, `done 2` ticks the second one. Five
@@ -153,10 +153,10 @@ today's to-dos, running timers and a few one-press actions.
   download or a talk. Keep awake always starts off.
 - **Clipboard history** (off by default). The last 20 things you copied, kept
   in memory only and never written to disk. It skips anything that looks like
-  a password, key or token, ignores what you paste into Settings, and is wiped
+  a password, key or token, ignores what you copy while Settings is focused, and is wiped
   when you lock the screen, turn it off or quit.
 - **Low battery and eye rest.** The pet speaks up once when a laptop reaches
-  20% unplugged. The optional 20-20-20 nudge reminds you to look away every 20
+  20% unplugged (on by default; it re-arms after charging). The optional 20-20-20 nudge reminds you to look away every 20
   minutes, and skips meetings, quiet hours and time you are away.
 
 If another app already owns the hotkey, the pet tells you once; pick another

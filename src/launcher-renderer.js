@@ -177,7 +177,8 @@
     else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey) || (e.ctrlKey && e.key === 'p')) { e.preventDefault(); move(-1); }
     else if (e.key === 'Enter') { e.preventDefault(); run(sel); }
     else if (e.key === 'Escape') { e.preventDefault(); if (input.value) { input.value = ''; sel = 0; refresh(); } else api.hide(); }
-    else if (e.altKey && /^[1-8]$/.test(e.key)) { e.preventDefault(); run(Number(e.key) - 1); }
+    // e.code, not e.key: on a Mac, Option+1 types a symbol, so e.key is never "1".
+    else if (e.altKey && /^Digit[1-8]$/.test(e.code)) { e.preventDefault(); run(Number(e.code.slice(5)) - 1); }
   });
   input.addEventListener('keyup', (e) => { if (e.key === 'Alt') document.body.classList.remove('alt'); });
 
