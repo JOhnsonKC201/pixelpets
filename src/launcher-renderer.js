@@ -11,6 +11,9 @@
   const petCanvas = document.getElementById('pet');
 
   const REFRESH_MS = 1000;
+  // The key that reveals the number shortcuts is called Option on a Mac.
+  const MOD = api.platform === 'darwin' ? 'option' : 'alt';
+  document.getElementById('modKey').textContent = MOD;
   const EMPTY_TIP = 'Try =12*7.5, 10m tea, todo …, g …';
 
   let items = [];
@@ -65,7 +68,7 @@
       hint.append(kbd('↵'), document.createTextNode(item.hint));
       box.appendChild(hint);
     }
-    if (i < 8) box.appendChild(el('span', 'num', null)).appendChild(kbd(`alt ${i + 1}`));
+    if (i < 8) box.appendChild(el('span', 'num', null)).appendChild(kbd(`${MOD} ${i + 1}`));
     if (item.toggle) box.appendChild(el('span', `switch${item.checked ? ' on' : ''}`));
     return box;
   }
