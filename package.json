@@ -23,6 +23,7 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win nsis",
     "dist:mac": "electron-builder --mac",
+    "pretest": "node scripts/ensure-electron.js",
     "test": "node --test",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "hook": "node scripts/install-hook.js",
