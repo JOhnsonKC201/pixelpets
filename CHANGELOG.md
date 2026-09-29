@@ -5,8 +5,8 @@ Notable changes to **pixelpets**. All art and sound are original/procedural (no 
 ## [Unreleased]
 
 ### Crash logs and Report a problem
-- **A local diagnostic log.** Errors used to go to `console.log`, which a packaged app throws away, so a crash left nothing behind. They now land in `logs/pixelpets.log` in the app-data folder: JSON lines, written in batches, rotated at 1 MB with three files kept. Emails, links, tokens and your user name are redacted before anything is written.
-- **Crashes are caught, not fatal.** Uncaught exceptions, unhandled rejections and dead helper processes are logged, and the pet says once that it tripped and where to report it.
+- **A local diagnostic log.** Errors used to go to `console.log`, which a packaged app throws away, so a crash left nothing behind. They now land in `logs/pixelpets.log` in the app-data folder: JSON lines, written in batches, three files of at most 1 MB (the current one and two rotated). Emails, links, tokens and your user name inside file paths are redacted before anything is written.
+- **Crashes are caught, not fatal.** Uncaught exceptions, unhandled rejections, a dead overlay and dead helper processes are logged. An uncaught exception also gets one "I tripped, but I'm okay" bubble pointing at Report a problem.
 - **Report a problem.** From the tray or Settings > Tools. It shows the exact text first (versions, OS, which features are switched on by name only, and the recent redacted log), then opens GitHub's bug form in your browser, prefilled, when you click. The app itself sends nothing.
 
 ### Quick Tools

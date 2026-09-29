@@ -86,6 +86,14 @@ test('a crash line logged during a rotation is the newest line in the report tai
   assert.doesNotMatch(fs.readFileSync(path.join(dir, 'pixelpets.1.log'), 'utf8'), /URGENT/);
 });
 
+test('by default the log keeps three files: the current one and two rotated', async () => {
+  const dir = tmp();
+  const log = makeLogger({ dir, maxBytes: 1500, echo: false });
+  for (let i = 0; i < 300; i++) { log.info(`line ${i} ${'z'.repeat(40)}`); if (i % 10 === 0) await log.flush(); }
+  await log.flush();
+  assert.deepStrictEqual(fs.readdirSync(dir).sort(), ['pixelpets.1.log', 'pixelpets.2.log', 'pixelpets.log']);
+});
+
 test('a logger whose folder cannot be written never throws', async () => {
   const log = makeLogger({ dir: path.join(tmp(), 'nope', '\u0000bad'), echo: false });
   log.error('still fine');

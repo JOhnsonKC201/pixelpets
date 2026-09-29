@@ -42,7 +42,9 @@ function describe(detail) {
   try { return JSON.stringify(detail); } catch (e) { return String(detail); }
 }
 
-function makeLogger({ dir, maxBytes = 1024 * 1024, keep = 3, echo = true }) {
+// `keep` counts rotated backups, so the default is the current file plus two:
+// three files of up to 1 MB each.
+function makeLogger({ dir, maxBytes = 1024 * 1024, keep = 2, echo = true }) {
   const file = path.join(dir, 'pixelpets.log');
   const rotated = (i) => path.join(dir, `pixelpets.${i}.log`);
   let queue = [];
