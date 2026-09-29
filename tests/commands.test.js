@@ -71,8 +71,10 @@ test('fuzzy finds shortcuts and system commands', () => {
   assert.deepStrictEqual(top('snip').action, { type: 'system', what: 'snip' });
   assert.deepStrictEqual(top('lock').action, { type: 'system', what: 'lock' });
   assert.match(top('lock', ctx({ platform: 'darwin' })).title, /Sleep display/);
-  assert.match(top('awake').title, /Keep awake: turn on/);
-  assert.match(top('awake', ctx({ keepAwake: true })).title, /turn off/);
+  assert.strictEqual(top('awake').title, 'Keep screen awake');
+  assert.strictEqual(top('awake').toggle, true);
+  assert.strictEqual(top('awake').hint, 'Turn on');
+  assert.strictEqual(top('awake', ctx({ keepAwake: true })).hint, 'Turn off');
 });
 
 test('an unmatched query offers search and a note instead of an empty list', () => {
@@ -100,4 +102,20 @@ test('clipboard text shown in the list is always a short preview', () => {
 test('typed results are capped', () => {
   const many = Array.from({ length: 30 }, (_, i) => ({ id: `s${i}`, label: `site ${i}`, target: `https://e.com/${i}` }));
   assert.ok(suggest('site', ctx({ shortcuts: many })).length <= MAX_RESULTS);
+});
+
+test('every result has an icon and a verb, and the empty query is sectioned', () => {
+  const queries = ['', '=1+1', '5 km in mi', 'g x', 'note x', 'todo x', 'done 1', '10m tea', 'clip', 'gmail', 'proj', 'lock', 'zzqqxx', '=bad'];
+  for (const q of queries) {
+    for (const r of suggest(q, ctx())) {
+      assert.ok(typeof r.icon === 'string' && r.icon, `${q}: icon`);
+      assert.strictEqual(typeof r.hint, 'string', `${q}: hint`);
+      if (r.action) assert.ok(r.hint, `${q}: an actionable row names its verb`);
+    }
+  }
+  const sections = [...new Set(suggest('', ctx()).map((r) => r.section))];
+  assert.deepStrictEqual(sections, ['Pinned', 'Today', 'Timers', 'Recent clips', 'Actions']);
+  assert.strictEqual(top('gmail').icon, 'link');
+  assert.strictEqual(top('proj').icon, 'folder');
+  assert.strictEqual(top('=2*3').hint, 'Copy');
 });

@@ -5,65 +5,136 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none';" />
   <title>pixelpets quick tools</title>
   <style>
-    /* Same palette as Settings, so the launcher reads as the same little app. */
+    /* Glass by default: the window itself draws Windows 11 acrylic or macOS
+       vibrancy behind a see-through page, and these panels only tint it. Where the
+       OS has no material (Windows 10), body.solid swaps in an opaque panel. Light
+       and dark both follow the system theme. */
     :root {
-      --bg:#191b22; --panel:#23262f; --panel2:#2a2e39; --line:#363b47;
-      --fg:#eceef3; --muted:#9aa0ad; --faint:#6b7280;
-      --accent:#e8943c; --accent-deep:#b5641d; --good:#8bbf5a;
-      --k-calc:#8bbf5a; --k-web:#6aa6e8; --k-note:#d9b44a; --k-todo:#e8943c;
-      --k-time:#c98be8; --k-link:#5ec2b0; --k-clip:#9aa0ad; --k-sys:#e8746a;
+      color-scheme: light dark;
+      --glass: rgba(24, 26, 33, .62);
+      --solid: #1b1d24;
+      --hair: rgba(255, 255, 255, .09);
+      --sep: rgba(255, 255, 255, .06);
+      --fg: #f1f2f6; --muted: #a2a7b3; --faint: #737987;
+      --row-hover: rgba(255, 255, 255, .05);
+      --row-sel: rgba(255, 255, 255, .09);
+      --tile: rgba(255, 255, 255, .07);
+      --kbd: rgba(255, 255, 255, .08);
+      --accent: #e8943c; --accent-soft: rgba(232, 148, 60, .18);
+      --c-link: #6aa9ff; --c-folder: #f0b54a; --c-app: #b58cff; --c-file: #9fb3c8; --c-mail: #ff8a80;
+      --c-calc: #7fd08a; --c-time: #d49bff; --c-todo: #e8943c; --c-note: #f2cf5b; --c-sys: #c3c8d4; --c-search: #6aa9ff;
+      --shadow: 0 18px 50px rgba(0, 0, 0, .45);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --glass: rgba(250, 250, 252, .70);
+        --solid: #f6f6f8;
+        --hair: rgba(0, 0, 0, .10);
+        --sep: rgba(0, 0, 0, .06);
+        --fg: #16181d; --muted: #5d6370; --faint: #8a909c;
+        --row-hover: rgba(0, 0, 0, .04);
+        --row-sel: rgba(0, 0, 0, .07);
+        --tile: rgba(0, 0, 0, .05);
+        --kbd: rgba(0, 0, 0, .06);
+        --accent-soft: rgba(232, 148, 60, .22);
+        --c-link: #2f74e0; --c-folder: #c98a12; --c-app: #7b4fd6; --c-file: #5d7288; --c-mail: #d4473b;
+        --c-calc: #2f9447; --c-time: #9a4fd6; --c-todo: #c9721f; --c-note: #b08a0e; --c-sys: #5a6070; --c-search: #2f74e0;
+        --shadow: 0 18px 50px rgba(0, 0, 0, .18);
+      }
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; background: var(--bg); color: var(--fg); overflow: hidden; }
-    body { font: 13px/1.4 "Segoe UI", -apple-system, system-ui, sans-serif; user-select: none; border: 2px solid #0f1116; }
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    body { font: 13px/1.35 "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: var(--fg); user-select: none; }
+    .shell { background: var(--glass); border: 1px solid var(--hair); border-radius: 12px; overflow: hidden; }
+    body.solid .shell { background: var(--solid); }
+    body.enter .shell { animation: pop .12s ease-out; }
+    @keyframes pop { from { opacity: 0; transform: scale(.985) translateY(-4px); } to { opacity: 1; transform: none; } }
 
-    .bar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: linear-gradient(180deg, #1e2027, #181a20); border-bottom: 2px solid #0f1116; }
-    .paw { width: 28px; height: 28px; flex: none; display: grid; place-items: center; background: var(--accent); color: #1a1c22; border-radius: 7px; box-shadow: 0 0 0 2px #0f1116, 2px 2px 0 rgba(0,0,0,.45); font-size: 15px; }
-    #q { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--fg); font: 500 17px/1.2 inherit; caret-color: var(--accent); }
+    /* header: the pet, the input, the key that closes it */
+    .bar { display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 12px; border-bottom: 1px solid var(--sep); }
+    #pet { width: 34px; height: 40px; flex: none; image-rendering: pixelated; }
+    #q { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--fg); font: 400 19px/1.2 inherit; caret-color: var(--accent); }
     #q::placeholder { color: var(--faint); }
-    .key { color: var(--faint); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; flex: none; }
+    kbd { font: 600 10.5px/1 "Segoe UI", system-ui, sans-serif; color: var(--muted); background: var(--kbd); border: 1px solid var(--hair); border-bottom-width: 2px; border-radius: 5px; padding: 3px 6px; }
 
-    #list { list-style: none; margin: 0; padding: 6px; max-height: 360px; overflow-y: auto; }
+    #list { list-style: none; margin: 0; padding: 6px; max-height: 420px; overflow-y: auto; scroll-padding: 34px 0 6px; }
     #list:empty { display: none; }
     #list::-webkit-scrollbar { width: 8px; }
-    #list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
-    .row { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 7px; cursor: pointer; border: 1px solid transparent; }
-    .row .tag { font: 700 9.5px/1 ui-monospace, Consolas, monospace; letter-spacing: .8px; text-align: center; padding: 4px 0; border-radius: 4px; color: #15171d; background: var(--k, var(--muted)); box-shadow: 1px 1px 0 rgba(0,0,0,.45); }
-    .row .txt { min-width: 0; }
-    .row .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .row .s { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .row .n { color: var(--faint); font: 11px ui-monospace, Consolas, monospace; }
-    .row.done .t { color: var(--faint); text-decoration: line-through; }
-    .row.off { cursor: default; opacity: .75; }
-    .row:hover { background: var(--panel); }
-    .row[aria-selected="true"] { background: var(--panel2); border-color: var(--accent-deep); box-shadow: inset 3px 0 0 var(--accent); }
-    .row[data-kind="calc"], .row[data-kind="convert"] { --k: var(--k-calc); }
-    .row[data-kind="calc"] .t, .row[data-kind="convert"] .t { font: 600 16px/1.3 ui-monospace, Consolas, monospace; color: var(--k-calc); }
-    .row[data-kind="search"] { --k: var(--k-web); }
-    .row[data-kind="note"] { --k: var(--k-note); }
-    .row[data-kind="todo"] { --k: var(--k-todo); }
-    .row[data-kind="timer"] { --k: var(--k-time); }
-    .row[data-kind="shortcut"] { --k: var(--k-link); }
-    .row[data-kind="clip"] { --k: var(--k-clip); }
-    .row[data-kind="system"] { --k: var(--k-sys); }
+    #list::-webkit-scrollbar-thumb { background: var(--hair); border-radius: 4px; }
 
-    .foot { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 7px 14px 9px; border-top: 1px solid #0f1116; color: var(--faint); font-size: 11px; }
-    .foot b { color: var(--muted); font-weight: 600; font-family: ui-monospace, Consolas, monospace; }
+    .grp, .grp-rows { list-style: none; margin: 0; padding: 0; }
+    .sec { display: flex; justify-content: space-between; padding: 10px 10px 4px; color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
+    .grp:first-child .sec { padding-top: 4px; }
+
+    .row { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 11px; padding: 6px 10px 6px 7px; border-radius: 8px; cursor: default; transition: background .08s; }
+    .row:hover { background: var(--row-hover); }
+    .row[aria-selected="true"] { background: var(--row-sel); }
+    .row.off { opacity: .7; }
+
+    .tile { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--tile); color: var(--k, var(--c-sys)); }
+    .tile svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .tile img { width: 24px; height: 24px; }
+    .tile.bare { background: transparent; }
+    .tile .check { width: 19px; height: 19px; }
+    .tile .letter { font: 700 15px/1 "Segoe UI", system-ui, sans-serif; color: #fff; width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; }
+    .row[data-icon="link"] { --k: var(--c-link); } .row[data-icon="search"] { --k: var(--c-search); }
+    .row[data-icon="folder"] { --k: var(--c-folder); } .row[data-icon="app"] { --k: var(--c-app); }
+    .row[data-icon="file"] { --k: var(--c-file); } .row[data-icon="mail"] { --k: var(--c-mail); }
+    .row[data-icon="calc"], .row[data-icon="convert"] { --k: var(--c-calc); }
+    .row[data-icon="timer"] { --k: var(--c-time); } .row[data-icon="todo"] { --k: var(--c-todo); }
+    .row[data-icon="note"], .row[data-icon="notes"] { --k: var(--c-note); }
+
+    .txt { min-width: 0; }
+    .t { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .s { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row.done .t { color: var(--faint); text-decoration: line-through; }
+    .row[data-kind="calc"] .t, .row[data-kind="convert"] .t { font: 600 20px/1.2 "Cascadia Mono", "SF Mono", ui-monospace, Consolas, monospace; letter-spacing: -.3px; }
+
+    /* right side: only the selected row shows its verb; toggles always show state */
+    .end { display: flex; align-items: center; gap: 8px; }
+    .hint { display: none; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+    .row[aria-selected="true"] .hint { display: flex; }
+    .num { display: none; }
+    body.alt .num { display: inline-block; }
+    .switch { width: 32px; height: 18px; border-radius: 9px; background: var(--kbd); border: 1px solid var(--hair); position: relative; transition: background .15s; }
+    .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+    .switch.on { background: var(--accent); border-color: transparent; }
+    .switch.on::after { transform: translateX(14px); background: #fff; }
+    .check { width: 17px; height: 17px; border-radius: 50%; border: 1.8px solid var(--faint); display: grid; place-items: center; }
+    .check.on { background: var(--c-todo); border-color: var(--c-todo); }
+    .check.on::after { content: ""; width: 7px; height: 4px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px); }
+
+    .foot { display: flex; align-items: center; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--sep); color: var(--faint); font-size: 11.5px; }
+    .foot span { display: inline-flex; align-items: center; gap: 5px; }
+    .foot .tip { margin-left: auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+    @media (prefers-reduced-motion: reduce) { body.enter .shell { animation: none; } .row, .switch, .switch::after { transition: none; } }
+    body.still .shell { animation: none !important; }
   </style>
 </head>
 <body>
-  <div class="bar">
-    <span class="paw" aria-hidden="true">🐾</span>
-    <input id="q" type="text" autocomplete="off" spellcheck="false"
-           role="combobox" aria-expanded="true" aria-controls="list" aria-autocomplete="list"
-           placeholder="Open, note, time, calculate, search…" />
-    <span class="key" aria-hidden="true">esc</span>
+  <div class="shell">
+    <div class="bar">
+      <canvas id="pet" width="34" height="40" aria-hidden="true"></canvas>
+      <input id="q" type="text" autocomplete="off" spellcheck="false"
+             role="combobox" aria-expanded="true" aria-controls="list" aria-autocomplete="list"
+             placeholder="Search apps, notes, timers, anything…" />
+      <kbd>esc</kbd>
+    </div>
+    <ul id="list" role="listbox" aria-label="Quick tools"></ul>
+    <div class="foot" id="foot">
+      <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
+      <span><kbd>↵</kbd> run</span>
+      <span><kbd>alt</kbd> numbers</span>
+      <span class="tip" id="tip">Try =12*7.5, 10m tea, todo …, g …</span>
+    </div>
   </div>
-  <ul id="list" role="listbox" aria-label="Quick tools"></ul>
-  <div class="foot" id="foot">
-    <span><b>=</b> calc</span><span><b>5 km in mi</b></span><span><b>g</b> search</span>
-    <span><b>note</b> …</span><span><b>todo</b> …</span><span><b>10m tea</b> timer</span><span><b>done 1</b></span>
-  </div>
+  <script src="patterns.js"></script>
+  <script src="cat-sprite.js"></script>
+  <script src="dog-sprite.js"></script>
+  <script src="pets.js"></script>
+  <script src="cat-preview.js"></script>
+  <script src="launcher-icons.js"></script>
   <script src="launcher-renderer.js"></script>
 </body>
 </html>

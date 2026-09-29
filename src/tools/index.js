@@ -69,15 +69,51 @@ function ctx() {
   };
 }
 
-// What the launcher window is allowed to see: text to draw, nothing to execute.
-const display = (list) => list.map((r) => ({
-  kind: r.kind, title: r.title, subtitle: r.subtitle || '', checked: !!r.checked, enabled: !!r.action,
-}));
+// The real OS icon for a pinned file, folder or app, as a data: URL. Cached per
+// path; a lookup that fails is cached too, so a missing file is asked about once.
+// The lookup races a short deadline: one pinned file on a slow or sleeping drive
+// must not hold the whole list back. A late answer still lands in the cache for
+// next time; this open just shows the line icon.
+const fileIcons = new Map();
+const ICON_DEADLINE_MS = 400;
+async function fileIcon(target) {
+  if (fileIcons.has(target)) return fileIcons.get(target);
+  const lookup = app.getFileIcon(target, { size: 'normal' })
+    .then((img) => (img && !img.isEmpty() ? img.toDataURL() : null))
+    .catch(() => null)
+    .then((data) => { fileIcons.set(target, data); return data; });
+  const late = new Promise((resolve) => setTimeout(() => resolve(null), ICON_DEADLINE_MS));
+  return Promise.race([lookup, late]);
+}
+
+// What the launcher window is allowed to see: text and pictures to draw, nothing
+// to execute. Actions stay in `cache`.
+async function display(list) {
+  return Promise.all(list.map(async (r) => ({
+    kind: r.kind, title: r.title, subtitle: r.subtitle || '', checked: !!r.checked, enabled: !!r.action,
+    icon: r.icon, hint: r.hint || '', section: r.section || '', toggle: !!r.toggle,
+    iconData: r.kind === 'shortcut' && ['app', 'folder', 'file'].includes(r.icon) ? await fileIcon(r.subtitle) : null,
+  })));
+}
 
 function suggest(q) {
   const query = String(q == null ? '' : q).slice(0, 500);
   cache = { q: query, list: commands.suggest(query, ctx()) };
   return display(cache.list);
+}
+
+// What the launcher needs to dress itself: the pet's current coat and whether to
+// hold still. Custom cat coats travel as their palette.
+function launcherState() {
+  const c = cfg();
+  const dog = c.species === 'dog';
+  const coat = dog ? c.dogPattern : c.pattern;
+  const themes = d.getThemes ? d.getThemes() : [];
+  const builtins = d.builtinCoatCount ? d.builtinCoatCount() : Infinity;
+  return {
+    pet: { species: dog ? 'dog' : 'cat', coat, theme: !dog && coat >= builtins ? themes[coat - builtins] || null : null },
+    still: !!c.reducedMotion,
+  };
 }
 
 // ---- timers -------------------------------------------------------------------
@@ -160,7 +196,7 @@ function onBattery(reading) {
 
 // ---- hotkey + opening -----------------------------------------------------------
 function open(anchor) {
-  launcher.show(anchor);
+  launcher.show(anchor, launcherState());
 }
 function toggle() {
   if (launcher.isVisible()) launcher.hide(); else open(null);
@@ -190,7 +226,7 @@ function registerIpc() {
     if (!item || !item.action) return { close: false };
     if (!item.stay) launcher.hide();
     await runAction(api, item.action);
-    return item.stay ? { close: false, list: suggest(q) } : { close: true };
+    return item.stay ? { close: false, list: await suggest(q) } : { close: true };
   }));
   ipcMain.on('launcher:resize', launcherOnly((h) => { if (Number.isFinite(h)) launcher.resize(h); }));
   ipcMain.on('launcher:hide', launcherOnly(() => launcher.hide()));
