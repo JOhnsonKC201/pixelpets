@@ -7,27 +7,12 @@
 // the pet can never cover it, and it hides itself the moment it loses focus.
 const { BrowserWindow, screen, app } = require('electron');
 const path = require('path');
-const os = require('os');
+
+const { glassFor, materialOptions } = require('./glass');
 
 const WIDTH = 600;
 const MIN_H = 66;
 const MAX_H = 560;
-const WIN11_22H2 = 22621;   // first Windows build with DWM backdrop materials (acrylic)
-
-// Which native "glass" this OS can draw behind the launcher. Windows 11 22H2+
-// gets acrylic, macOS gets vibrancy; anything older gets a solid panel, which
-// the page learns about through the reset state (glass: false).
-function glassFor(platform = process.platform, release = os.release()) {
-  if (platform === 'darwin') return 'vibrancy';
-  if (platform === 'win32' && Number(String(release).split('.')[2]) >= WIN11_22H2) return 'acrylic';
-  return null;
-}
-
-function materialOptions(glass) {
-  if (glass === 'acrylic') return { backgroundColor: '#00000000', backgroundMaterial: 'acrylic', roundedCorners: true };
-  if (glass === 'vibrancy') return { transparent: true, backgroundColor: '#00000000', vibrancy: 'popover', visualEffectState: 'active', roundedCorners: true };
-  return { backgroundColor: '#1b1d24', roundedCorners: true };
-}
 const GAP = 12;   // space between the pet and the launcher when anchored to it
 
 function makeLauncher({ hardenNav, wireMacEditKeys }) {
@@ -123,4 +108,4 @@ function makeLauncher({ hardenNav, wireMacEditKeys }) {
   return { show, hide, isVisible, resize, owns, send, destroy };
 }
 
-module.exports = { makeLauncher, glassFor, MIN_H, MAX_H };
+module.exports = { makeLauncher, MIN_H, MAX_H };

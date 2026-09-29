@@ -89,7 +89,7 @@ test('every icon the router asks for is drawn, and icons are built as DOM, not m
 });
 
 test('the launcher only asks the OS for glass where the OS can draw it', () => {
-  const { glassFor } = require('../src/tools/launcher-window');
+  const { glassFor } = require('../src/tools/glass');
   assert.strictEqual(glassFor('win32', '10.0.26200'), 'acrylic');
   assert.strictEqual(glassFor('win32', '10.0.22621'), 'acrylic');
   assert.strictEqual(glassFor('win32', '10.0.19045'), null, 'Windows 10 gets the solid panel');
