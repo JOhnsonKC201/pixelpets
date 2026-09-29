@@ -486,6 +486,7 @@ $('toolsEyeRest').addEventListener('change', () => saveTools({ eyeRest: $('tools
 $('todoNudgeOn').addEventListener('change', () => saveTools({ todoNudge: $('todoNudgeOn').checked ? ($('todoNudge').value || '12:30') : '' }));
 $('todoNudge').addEventListener('change', () => { if ($('todoNudgeOn').checked && $('todoNudge').value) saveTools({ todoNudge: $('todoNudge').value }); });
 $('openNotes').addEventListener('click', () => window.settings.openNotes());
+$('reportProblem').addEventListener('click', () => window.settings.reportProblem());
 
 // Pinning goes through main's normalize(), which is the real allowlist. If the
 // list did not grow, the target was refused, and the user is told why.

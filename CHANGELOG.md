@@ -4,6 +4,11 @@ Notable changes to **pixelpets**. All art and sound are original/procedural (no 
 
 ## [Unreleased]
 
+### Crash logs and Report a problem
+- **A local diagnostic log.** Errors used to go to `console.log`, which a packaged app throws away, so a crash left nothing behind. They now land in `logs/pixelpets.log` in the app-data folder: JSON lines, written in batches, rotated at 1 MB with three files kept. Emails, links, tokens and your user name are redacted before anything is written.
+- **Crashes are caught, not fatal.** Uncaught exceptions, unhandled rejections and dead helper processes are logged, and the pet says once that it tripped and where to report it.
+- **Report a problem.** From the tray or Settings > Tools. It shows the exact text first (versions, OS, which features are switched on by name only, and the recent redacted log), then opens GitHub's bug form in your browser, prefilled, when you click. The app itself sends nothing.
+
 ### Quick Tools
 - **One box for everyday things.** Ctrl+Shift+Space (Cmd+Shift+Space on a Mac) or right-clicking the pet opens a keyboard-first launcher: pinned sites, folders and apps, a calculator and unit converter, web search, quick notes, today's to-dos (five at most, with a cheer when you finish one and one afternoon nudge), timers the pet announces, screen snip, lock screen and keep awake.
 - **Opt-in helpers.** Clipboard history (memory only, never saved, skips passwords and keys, cleared on lock and quit), a one-time low battery alert at 20%, and 20-20-20 eye-rest nudges. All in a new Settings > Tools tab.

@@ -236,6 +236,12 @@ alerts, and those talk only to the servers you point them at, from isolated
 worker processes. Your IMAP app password is stored encrypted at rest (Electron
 `safeStorage`) and never written to `settings.json`.
 
+pixelpets keeps a small diagnostic log on your machine (`logs/pixelpets.log` in
+the app-data folder, capped at a few MB). Emails, links, tokens and your user
+name are removed before a line is written. It is never uploaded: **Report a
+problem** (tray, or Settings > Tools) shows you the exact text first, and only
+your browser, opening GitHub's issue form when you click, ever carries it.
+
 ## Documentation
 
 | Guide | What is in it |

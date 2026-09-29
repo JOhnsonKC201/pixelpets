@@ -22,5 +22,6 @@ contextBridge.exposeInMainWorld('settings', {
   action: (id) => ipcRenderer.send('settings:action', id),
   pickShortcut: (kind) => ipcRenderer.invoke('tools:pickShortcut', kind),
   openNotes: () => ipcRenderer.send('tools:openNotes'),
+  reportProblem: () => ipcRenderer.send('report:open'),
   close: () => ipcRenderer.send('settings:close'),
 });

@@ -10,6 +10,9 @@ const focus = require('./focus');
 const mail = require('./mail');
 const cal = require('./cal');
 const tools = require('./tools');
+const { makeLogger } = require('./logger');
+const { makeReportWindow } = require('./report-window');
+const { enabledFeatures } = require('./report');
 const { wireMacEditKeys } = require('./mac-edit-keys');
 const themes = require('./themes');
 const { PATTERN_NAMES } = require('./patterns');
@@ -62,6 +65,27 @@ let onBattery = false;                                 // running unplugged (pow
 let lowPowerBroadcast = null;                          // last effective low-power state sent to the overlay
 let origin = { x: 0, y: 0 };                           // overlay top-left in screen px
 let hot = { x: 0, y: 0, w: 0, h: 0, dragging: false }; // cat's interactive region
+let reportWin = null;                                  // "Report a problem" window (report-window.js)
+
+// Local rotating log (logger.js). Until the app is ready and knows where its data
+// folder is, errors still reach the console instead of disappearing.
+let log = {
+  info: () => {}, warn: (...a) => console.warn(...a), error: (...a) => console.error(...a),
+  flush: async () => {}, flushSync: () => {}, tail: () => [],
+};
+const logDir = () => path.join(app.getPath('userData'), 'logs');
+
+// Anything that escapes a handler is logged instead of taking the pet down, and
+// the pet says so once, pointing at the one place a person can do something.
+let tripped = false;
+function trippedOnce() {
+  if (tripped || SHOT || SHEET) return;
+  tripped = true;
+  try {
+    notify("I tripped over something, but I'm okay. If it keeps happening, tray > Report a problem.",
+      { source: 'system', os: false, dedupeMs: 0, ttl: 9000 });
+  } catch (e) { /* the notifier itself may be what broke */ }
+}
 
 // Optional `--state=` / `--pattern=` force a pose/coat for --shot previews.
 const stateArg = (process.argv.find((a) => a.startsWith('--state=')) || '').split('=')[1] || '';
@@ -386,14 +410,14 @@ function createWindow() {
   // RELOAD_MAX consecutive crashes it stops and says so, rather than retrying
   // into the same wall in silence.
   win.webContents.on('render-process-gone', (_e, details) => {
-    console.log('[render-process-gone]', JSON.stringify(details));
+    log.error('overlay renderer gone', details);
     if (SHOT || !win || win.isDestroyed() || details.reason === 'clean-exit') return;
     // A renderer that has stayed up a while is a fresh fault, not a crash loop.
     if (Date.now() - lastRenderCrashAt > RELOAD_RESET_MS) renderCrashes = 0;
     lastRenderCrashAt = Date.now();
     renderCrashes += 1;
     if (renderCrashes > RELOAD_MAX) {
-      console.log(`[render-process-gone] ${renderCrashes} crashes in a row; giving up on reload`);
+      log.error(`overlay crashed ${renderCrashes} times in a row; giving up on reload`);
       notify('{name} kept crashing, so I stopped reloading. Restarting the app may help.',
         { dedupeKey: 'render-crash-loop', dedupeMs: 60000, source: 'system' });
       return;
@@ -641,7 +665,7 @@ function createTray() {
     // used, so double-click never fires there. Settings is the first menu item.
     if (process.platform !== 'darwin') tray.on('double-click', openSettings);
     rebuildTrayMenu();
-  } catch (e) { console.log('[tray-error]', e.message); }
+  } catch (e) { log.error('tray failed to start', e); }
 }
 function rebuildTrayMenu() {
   if (!tray) return;
@@ -731,6 +755,7 @@ function rebuildTrayMenu() {
       ];
     })() },
     { type: 'separator' },
+    { label: 'Report a problem…', click: () => reportWin && reportWin.open() },
     { label: 'Quit pixelpets', click: () => app.quit() },
   ]));
 }
@@ -775,7 +800,7 @@ function startInputHook() {
     hookStarted = true;
     if (hookRetry) { clearInterval(hookRetry); hookRetry = null; }
   } catch (e) {
-    console.log('[keyhook-error]', e.message);
+    log.warn('keyboard hook failed to start', e);
     if (process.platform === 'darwin' && !hookRetry) {
       notify('Turn on Accessibility for pixelpets in System Settings > Privacy & Security so I can react to your typing.',
         { source: 'system', dedupeKey: 'axapi', dedupeMs: 3600000, ttl: 12000, ignoreQuiet: true });
@@ -1087,6 +1112,7 @@ function cleanup() {
   try { mail.stop(); } catch (e) { /* ignore */ }
   try { cal.stop(); } catch (e) { /* ignore */ }
   try { tools.stop(); } catch (e) { /* ignore */ }
+  try { log.info('pixelpets quitting'); log.flushSync(); } catch (e) { /* ignore */ }
   if (tray) { try { tray.destroy(); } catch (e) { /* ignore */ } tray = null; }
 }
 
@@ -1103,6 +1129,7 @@ function isTrustedSender(e) {
   // that takes free typing, so it gets its OWN channels (tools/index.js) and nothing
   // else: it must never reach settings:save, the mail password or the calendar.
   if (tools.ownsSender(wc)) return false;
+  if (reportWin && reportWin.owns(wc)) return false;   // the report window has its own channels too
   // Fallback: any local file:// frame (navigation/window.open are blocked, so this is still ours).
   try { const u = e.senderFrame && e.senderFrame.url; return typeof u === 'string' && u.startsWith('file:'); }
   catch (_) { return false; }
@@ -1146,6 +1173,7 @@ onSecure('sheet:image', (_e, dataUrl) => {
   app.quit();
 });
 onSecure('settings:open', () => openSettings());
+onSecure('report:open', () => { if (reportWin) reportWin.open(); });
 onSecure('settings:save-pattern', (_e, i) => {
   if (!cfg) return;
   persistAndBroadcast({ ...cfg, [speciesOf(cfg.species).id === 'dog' ? 'dogPattern' : 'pattern']: i });
@@ -1232,6 +1260,16 @@ app.whenReady().then(() => {
   // Must run before the first read of settings/themes/mail: the pixelcat -> pixelpets
   // rename moved userData, so on an upgrade the files are still under the old name.
   datadir.migrateFromLegacy(app);
+  if (!SHOT && !SHEET && !REEL) {
+    log = makeLogger({ dir: logDir(), echo: !app.isPackaged });
+    log.info('pixelpets started', { version: app.getVersion(), platform: process.platform, release: os.release(), arch: process.arch, electron: process.versions.electron });
+    app.on('child-process-gone', (_e, details) => log.error('child process gone', details));
+    // Only for real runs: a listener turns an uncaught exception from "exit
+    // non-zero" into "log and carry on", and `npm run test:boot` (--shot) relies
+    // on the exit code to notice a crash.
+    process.on('uncaughtException', (e) => { log.error('uncaught exception', e); trippedOnce(); });
+    process.on('unhandledRejection', (e) => { log.warn('unhandled promise rejection', e instanceof Error ? e : String(e)); });
+  }
   themesCache = themes.load();
   if (REEL) return createReelWindow();   // capture-only: no tray, no hooks, no scheduler
   if (!SHOT && !SHEET) {
@@ -1257,7 +1295,14 @@ app.whenReady().then(() => {
       inQuiet: () => !!(cfg && inQuietHours(cfg.quietHours, new Date())),
       isSettingsFocused: () => !!(settingsWin && !settingsWin.isDestroyed() && settingsWin.isFocused()),
       getSettingsWin: () => (settingsWin && !settingsWin.isDestroyed() ? settingsWin : null),
-      getThemes: () => themesCache, builtinCoatCount: () => PATTERN_NAMES.length,
+      getThemes: () => themesCache, builtinCoatCount: () => PATTERN_NAMES.length, log,
+    });
+    reportWin = makeReportWindow({
+      hardenNav, wireMacEditKeys, log, logDir: logDir(),
+      getInfo: () => ({
+        version: app.getVersion(), platform: process.platform, osRelease: os.release(), arch: process.arch,
+        electron: process.versions.electron, features: enabledFeatures(cfg), logLines: log.tail(60),
+      }),
     });
     // Auto low-power on battery: track power state and re-derive the flag on change.
     try { onBattery = powerMonitor.isOnBatteryPower(); } catch (e) { onBattery = false; }
