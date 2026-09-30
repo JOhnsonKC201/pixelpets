@@ -45,6 +45,7 @@
     "electron": "^44.1.0",
     "electron-builder": "^26.15.3",
     "eslint": "^10.9.1",
+    "espree": "^11.2.0",
     "gifenc": "^1.0.3",
     "globals": "^17.11.0"
   },

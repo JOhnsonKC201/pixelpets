@@ -60,7 +60,7 @@ test('only system.js spawns processes or opens things, and never through a shell
 });
 
 test('right-click still reaches the coat cycle on Shift', () => {
-  const r = codeOnly(read('renderer.js'));
+  const r = codeOnly(require('../src/overlay/parts').readOverlaySource());
   const block = /addEventListener\('contextmenu'[\s\S]*?\n}\);/.exec(r)[0];
   assert.match(block, /e\.shiftKey/);
   assert.match(block, /cycleCoat\(\)/);

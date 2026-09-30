@@ -1,9 +1,9 @@
 // Loads the overlay's classic <script> stack (index.html order) into a vm context
-// with a mocked browser, so renderer.js state machines can be driven and inspected
+// with a mocked browser, so the overlay state machines can be driven and inspected
 // with no Electron, no GPU and no real canvas.
 //
 // Two consumers: the pose/interaction tests under tests/, and pet-sheet.js, which
-// uses it to reach the pose composers that live inside renderer.js (the dog's live
+// uses it to reach the pose composers that live inside the overlay (the dog's live
 // in a module, the cat's do not) so the contact sheet can cover every activity.
 //
 // The mocks are deliberately dumb: the 2D context swallows every draw call and
@@ -14,10 +14,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { OVERLAY_SRC } = require('../src/overlay/parts');
 
 const ROOT = path.join(__dirname, '..');
 
-// renderer.js leans on Math.random() everywhere - butterfly spawn side and flight,
+// the overlay leans on Math.random() everywhere - butterfly spawn side and flight,
 // roam targets, idle picks - so the same script of draw() calls used to play out
 // differently on every run, which is what made the timing-sensitive tests flaky.
 // The vm gets its OWN Math whose random() is a seeded PRNG, so a driven simulation
@@ -39,9 +40,9 @@ function seededMath(seed) {
 }
 
 // Same order as src/index.html - these share ONE global scope in the browser, and
-// renderer.js reads bare identifiers defined by the files ahead of it.
+// the overlay parts read bare identifiers defined by the files ahead of them.
 const SCRIPTS = ['cat-sprite.js', 'dog-sprite.js', 'pets.js', 'art-frames.js', 'template.js',
-  'bubble.js', 'climb-frames.js', 'audio.js', 'effects.js', 'jam.js', 'renderer.js'];
+  'bubble.js', 'climb-frames.js', 'audio.js', 'effects.js', 'jam.js', ...OVERLAY_SRC];
 
 // A canvas 2D context that accepts anything and draws nothing.
 function mockCtx2d() {
