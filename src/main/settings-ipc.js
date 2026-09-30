@@ -38,6 +38,8 @@ const COATS_FILE_FILTER = [{ name: 'JSON', extensions: ['json'] }];
  * @param {() => void} d.openReport
  * @param {(id: string) => void} d.sendAction
  * @param {Function} d.notify
+ * @param {() => string} d.appVersion
+ * @param {() => Promise<object>|object} d.checkUpdates
  */
 function registerSettingsIpc(d) {
   const { onSecure, handleSecure, getCfg, persist } = d;
@@ -73,6 +75,9 @@ function registerSettingsIpc(d) {
   handleSecure('calendar:test', () => d.cal.test(getCfg()));
 
   handleSecure('settings:get', () => getCfg());
+  handleSecure('app:version', () => d.appVersion());
+  // Only ever runs when the user has turned update checks on (src/main/updater.js).
+  handleSecure('updates:check-now', () => d.checkUpdates());
   handleSecure('settings:save', (_e, partial) => {
     // Reject anything that is not a small plain object before merging.
     // config.normalize is the real sanitizer; this caps the in-flight

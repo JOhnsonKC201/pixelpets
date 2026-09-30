@@ -471,6 +471,20 @@
       </section>
 
       <section class="card">
+        <div class="card-h">updates</div>
+        <label class="check"><input type="checkbox" id="updCheck" /><span class="t">Check for updates<span class="sub">off unless you turn it on. When on, the app asks GitHub for the latest release every 6 hours and sends nothing about you. Windows installs the update when you quit; on a Mac the pet tells you where to download it</span></span></label>
+        <div class="row inline" style="margin-top:10px;">
+          <label class="lbl" for="updChannel">Channel</label>
+          <select id="updChannel">
+            <option value="stable">Stable</option>
+            <option value="beta">Beta (early builds)</option>
+          </select>
+          <button class="ghost" id="updCheckNow">Check now</button>
+        </div>
+        <span class="hint" id="updStatus"></span>
+      </section>
+
+      <section class="card">
         <div class="card-h">help</div>
         <span class="hint">Something broken? The report shows you every word before your browser opens GitHub. Nothing is sent by the app.</span>
         <div class="acts" style="margin-top:10px;">

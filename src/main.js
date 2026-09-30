@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, dialog, Notification, powerMonitor, session } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, dialog, Notification, powerMonitor, session, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -34,6 +34,7 @@ const { installAppGuards } = require('./main/app-guards');
 const { startSoak } = require('./main/soak');
 const { captureShot } = require('./main/shot');
 const { createSettingsWindow } = require('./main/settings-window');
+const { makeUpdater } = require('./main/updater');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -52,6 +53,7 @@ let tipTimers = [];                                    // one-time first-run hin
 let onTop = null;                                      // re-asserts always-on-top (src/main/keep-on-top.js)
 let settingArea = false, areaTimer = null;             // "set play area (drag)" mode
 let bridge = null;                                     // the agent/notify file watcher (src/main/bridge.js)
+let updater = null;                                    // opt-in update checks (src/main/updater.js)
 let scheduleTimer;                                     // break-timer + reminder clock
 let breakAnchor = 0;                                   // ms timestamp the break countdown started
 let lastMinuteKey = '';                                // 'YYYY-M-D-HH:MM' for reminder dedupe
@@ -319,6 +321,7 @@ function persistAndBroadcast(next) {
   tools.onConfig(cfg);   // hotkey + clipboard history follow their settings
   applyConfigToOverlay();
   applyFocus();   // work mode / quiet hours / focus toggles all change whether we are "busy"
+  if (updater) updater.sync();   // the updates switch or channel may have changed
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('config', cfg);
   rebuildTrayMenu();
 }
@@ -358,7 +361,7 @@ function rebuildTrayMenu() {
     cfg, getCfg: () => cfg, species: sp, coatNames,
     speciesList: SPECIES_IDS.map((id) => ({ id, emoji: SPECIES[id].emoji, label: SPECIES[id].label })),
     recent: notifyHistory.recent(10), relTime,
-    onBattery, lowPowerOn: effectiveLowPower(), toolItems: tools.trayItems(),
+    onBattery, lowPowerOn: effectiveLowPower(), toolItems: [...(updater ? updater.trayItems() : []), ...tools.trayItems()],
   }, {
     persist: persistAndBroadcast, openSettings, triggerBreak, giveTreat, snooze: snoozeLast, sendMood, startSetArea, sendAction,
     renotify: (n) => notify(n.message, { source: 'recap', recap: true, dedupeMs: 0, os: false }),
@@ -632,6 +635,7 @@ function cleanup() {
   if (hookRetry) { clearInterval(hookRetry); hookRetry = null; }
   if (scheduleTimer) clearInterval(scheduleTimer);
   pomodoro.stop();
+  if (updater) updater.stop();
   notifyHistory.flush();   // write any pending history now so it can't fire mid-teardown
   if (bridge) bridge.stop();
   if (hookStarted) { try { require('uiohook-napi').uIOhook.stop(); } catch (e) { /* ignore */ } }
@@ -700,6 +704,7 @@ registerSettingsIpc({
   getDialogParent: () => settingsWin || win,
   getSettingsWin: () => (settingsWin && !settingsWin.isDestroyed() ? settingsWin : null),
   openSettings, openReport: () => { if (reportWin) reportWin.open(); }, sendAction, notify,
+  appVersion: () => app.getVersion(), checkUpdates: () => (updater ? updater.checkNow() : { status: 'off' }),
 });
 
 app.whenReady().then(() => {
@@ -740,7 +745,11 @@ app.whenReady().then(() => {
   }
   createWindow();
   if (!SHOT && !SHEET) {
-    createTray(); startScheduler(); mail.init(notify, () => cfg); mail.sync(cfg); cal.init(notify, () => cfg); cal.sync(cfg);
+    updater = makeUpdater({
+      getUpdater: () => require('electron-updater').autoUpdater, isPackaged: app.isPackaged, platform: process.platform,
+      getCfg: () => cfg, notify, log, openExternal: (url) => shell.openExternal(url), onChange: () => rebuildTrayMenu(),
+    });
+    createTray(); updater.sync(); startScheduler(); mail.init(notify, () => cfg); mail.sync(cfg); cal.init(notify, () => cfg); cal.sync(cfg);
     if (cli.soakMinutes) startSoak({ app, minutes: cli.soakMinutes, print: (line) => { log.info(line); if (app.isPackaged) console.log(line); } });
     tools.init({
       notify, getCfg: () => cfg, persist: persistAndBroadcast, sendAction, triggerBreak, openSettings,

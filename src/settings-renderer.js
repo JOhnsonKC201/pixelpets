@@ -160,6 +160,7 @@ function render() {
   $('calOn').checked = !!cal.on;
   if (document.activeElement !== $('calUrl')) $('calUrl').value = cal.icsUrl || '';
   if (document.activeElement !== $('calLead')) $('calLead').value = String(cal.leadMin == null ? 10 : cal.leadMin);
+  renderUpdates();
   renderReminders();
   renderTools();
   drawPreview();
@@ -380,6 +381,35 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.setti
 window.settings.onConfig((c) => { cfg = c; render(); });
 
 window.settings.get().then((c) => { cfg = c; render(); });
+
+// ---- updates (opt-in; src/main/updater.js does the work) ----
+let appVersion = '';
+window.settings.appVersion().then((v) => { appVersion = v || ''; renderUpdates(); });
+const UPDATE_STATUS = {
+  off: 'Turn on "Check for updates" first.',
+  dev: 'Running from source: update with git pull.',
+  'up-to-date': 'You have the latest version.',
+  error: 'Could not reach GitHub. It will try again later.',
+};
+function renderUpdates() {
+  const u = (cfg && cfg.updates) || { check: false, channel: 'stable' };
+  $('updCheck').checked = u.check === true;
+  $('updChannel').value = u.channel === 'beta' ? 'beta' : 'stable';
+  $('updChannel').disabled = !u.check;
+  $('updCheckNow').disabled = !u.check;
+  if (!$('updStatus').dataset.result) $('updStatus').textContent = appVersion ? `This is version ${appVersion}.` : '';
+}
+const saveUpdates = () => save({ updates: { check: $('updCheck').checked, channel: $('updChannel').value } });
+$('updCheck').addEventListener('change', saveUpdates);
+$('updChannel').addEventListener('change', saveUpdates);
+$('updCheckNow').addEventListener('click', async () => {
+  $('updStatus').textContent = 'Checking\u2026';
+  const r = (await window.settings.checkUpdates()) || { status: 'error' };
+  $('updStatus').dataset.result = '1';
+  $('updStatus').textContent = r.status === 'available' ? `Version ${r.version} is out; the pet will tell you when it is ready.`
+    : r.status === 'ready' ? `Version ${r.version} is ready. Pick "Restart to update" in the tray.`
+      : (UPDATE_STATUS[r.status] || UPDATE_STATUS.error);
+});
 
 // Custom coats: load + live updates from main.
 window.settings.onThemes((list) => { themes = list || []; populateCoats(); renderThemes(); });
