@@ -131,3 +131,29 @@ test('update checks ship off, and only an explicit true turns them on', () => {
   assert.strictEqual(normalize({ updates: { check: 1 } }).updates.check, false);
   assert.strictEqual(normalize({ updates: { check: true } }).updates.check, true);
 });
+
+test('checks carry the same staging ID from every install, not a per-install one', () => {
+  const { SHARED_ID } = require('../src/main/updater');
+  const { u, fake } = setup();
+  u.sync();
+  assert.deepStrictEqual(fake.requestHeaders, { 'x-user-staging-id': SHARED_ID });
+});
+
+test('electron-updater lets our header replace its own', () => {
+  // AppUpdater copies requestHeaders over its defaults. If a new version stops
+  // doing that, the per-install ID would go out again, so pin it.
+  const src = require('node:fs').readFileSync(require.resolve('electron-updater/out/AppUpdater.js'), 'utf8');
+  assert.match(src, /computeFinalHeaders\(headers\) \{\s*if \(this\.requestHeaders != null\) \{\s*Object\.assign\(headers, this\.requestHeaders\);/);
+  assert.match(src, /setRequestHeaders\(this\.computeFinalHeaders\(\{ "x-user-staging-id": stagingUserId \}\)\)/);
+});
+
+test('a version that is not a plain version never reaches a bubble or a URL', () => {
+  const { u, fake, state } = setup({ platform: 'darwin' });
+  u.sync();
+  fake.emit('update-available', { version: '1.0?x=../../evil' });
+  assert.deepStrictEqual(state.notes, []);
+  assert.deepStrictEqual(u.trayItems(), []);
+  fake.emit('update-available', { version: '0.5.0-beta.1' });
+  u.trayItems()[0].click();
+  assert.deepStrictEqual(state.opened, [`${RELEASES}/tag/v0.5.0-beta.1`]);
+});

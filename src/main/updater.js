@@ -2,18 +2,31 @@
 //
 // pixelpets promises not to touch the network unless you ask it to, so this
 // does nothing at all until Settings > Updates > "Check for updates" is on.
-// When it is on, the only request is to this repo's GitHub Releases feed
-// (build.publish in package.json), and nothing about the user is sent.
+// When it is on, the only requests go to this repo's GitHub Releases
+// (build.publish in package.json). Like any web request they carry the IP
+// address and a user agent naming the app, Electron and OS versions.
+// electron-updater would also send a random ID that it keeps per install,
+// which lets every check from one machine be linked; we replace it with the
+// same value for everyone (SHARED_ID below), so it identifies no one.
 //
 // Windows downloads in the background and installs when the app quits; the
 // tray offers "Restart to update". macOS only checks: installing an update
 // there needs an Apple Developer ID signature these builds do not have, so the
 // pet points at the release page instead. Both verify the download against the
-// sha512 in latest.yml / latest-mac.yml.
+// sha512 in latest.yml / latest-mac.yml. That catches a corrupt download,
+// not a malicious one: the manifest and the installer come from the same
+// release, so whoever can publish a release can publish an update. Code
+// signing (win.publisherName) is what would add that check.
 
 const FIRST_CHECK_MS = 30 * 1000;
 const EVERY_MS = 6 * 60 * 60 * 1000;
 const RELEASES = 'https://github.com/JOhnsonKC201/pixelpets/releases';
+// Sent as x-user-staging-id instead of a per-install ID. Staged rollouts are
+// not used, so the value does not matter as long as it is the same for all.
+const SHARED_ID = '00000000-0000-4000-8000-000000000000';
+const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+// Only plain versions from the manifest are trusted into text and URLs.
+const versionOf = (info) => (info && VERSION.test(String(info.version)) ? String(info.version) : null);
 
 /**
  * What this run should do about updates.
@@ -52,14 +65,15 @@ function makeUpdater(d) {
     if (updater) return updater;
     updater = d.getUpdater();
     updater.logger = null;              // our own log gets the outcome, not electron-updater's chatter
+    updater.requestHeaders = { 'x-user-staging-id': SHARED_ID };
     updater.autoInstallOnAppQuit = true;
     updater.on('update-available', (info) => {
-      available = info && info.version;
+      available = versionOf(info);
       if (mode === 'notify') tell(available, `Version ${available} is out. Pick "Download ${available}" in the tray menu to get it.`);
       d.onChange();
     });
     updater.on('update-downloaded', (info) => {
-      ready = info && info.version;
+      ready = versionOf(info);
       tell(ready, `Version ${ready} is ready. It installs when you quit, or pick "Restart to update" in the tray.`);
       d.onChange();
     });
@@ -119,7 +133,7 @@ function makeUpdater(d) {
       return [{ label: `Restart to update to ${ready}`, click: () => wire().quitAndInstall() }];
     }
     if (mode === 'notify' && available) {
-      return [{ label: `Download ${available}`, click: () => d.openExternal(`${RELEASES}/tag/v${available}`) }];
+      return [{ label: `Download ${available}`, click: () => d.openExternal(`${RELEASES}/tag/v${encodeURIComponent(available)}`) }];
     }
     return [];
   }
@@ -131,4 +145,4 @@ function makeUpdater(d) {
   return { sync, checkNow: check, trayItems, stop, mode: () => mode };
 }
 
-module.exports = { makeUpdater, updateMode, RELEASES };
+module.exports = { makeUpdater, updateMode, RELEASES, SHARED_ID };
