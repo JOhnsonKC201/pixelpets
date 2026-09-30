@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none';" />
+  <title>pixelpets quick tools</title>
+  <style>
+    /* Glass by default: the window itself draws Windows 11 acrylic or macOS
+       vibrancy behind a see-through page, and these panels only tint it. Where the
+       OS has no material (Windows 10), body.solid swaps in an opaque panel. Light
+       and dark both follow the system theme. */
+    :root {
+      color-scheme: light dark;
+      --glass: rgba(24, 26, 33, .62);
+      --solid: #1b1d24;
+      --hair: rgba(255, 255, 255, .09);
+      --sep: rgba(255, 255, 255, .06);
+      --fg: #f1f2f6; --muted: #a2a7b3; --faint: #737987;
+      --row-hover: rgba(255, 255, 255, .05);
+      --row-sel: rgba(255, 255, 255, .09);
+      --tile: rgba(255, 255, 255, .07);
+      --kbd: rgba(255, 255, 255, .08);
+      --accent: #e8943c; --accent-soft: rgba(232, 148, 60, .18);
+      --c-link: #6aa9ff; --c-folder: #f0b54a; --c-app: #b58cff; --c-file: #9fb3c8; --c-mail: #ff8a80;
+      --c-calc: #7fd08a; --c-time: #d49bff; --c-todo: #e8943c; --c-note: #f2cf5b; --c-sys: #c3c8d4; --c-search: #6aa9ff;
+      --shadow: 0 18px 50px rgba(0, 0, 0, .45);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --glass: rgba(250, 250, 252, .70);
+        --solid: #f6f6f8;
+        --hair: rgba(0, 0, 0, .10);
+        --sep: rgba(0, 0, 0, .06);
+        --fg: #16181d; --muted: #5d6370; --faint: #8a909c;
+        --row-hover: rgba(0, 0, 0, .04);
+        --row-sel: rgba(0, 0, 0, .07);
+        --tile: rgba(0, 0, 0, .05);
+        --kbd: rgba(0, 0, 0, .06);
+        --accent-soft: rgba(232, 148, 60, .22);
+        --c-link: #2f74e0; --c-folder: #c98a12; --c-app: #7b4fd6; --c-file: #5d7288; --c-mail: #d4473b;
+        --c-calc: #2f9447; --c-time: #9a4fd6; --c-todo: #c9721f; --c-note: #b08a0e; --c-sys: #5a6070; --c-search: #2f74e0;
+        --shadow: 0 18px 50px rgba(0, 0, 0, .18);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    body { font: 13px/1.35 "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: var(--fg); user-select: none; }
+    .shell { background: var(--glass); border: 1px solid var(--hair); border-radius: 12px; overflow: hidden; }
+    body.solid .shell { background: var(--solid); }
+    body.enter .shell { animation: pop .12s ease-out; }
+    @keyframes pop { from { opacity: 0; transform: scale(.985) translateY(-4px); } to { opacity: 1; transform: none; } }
+
+    /* header: the pet, the input, the key that closes it */
+    .bar { display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 12px; border-bottom: 1px solid var(--sep); }
+    #pet { width: 34px; height: 40px; flex: none; image-rendering: pixelated; }
+    #q { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--fg); font: 400 19px/1.2 inherit; caret-color: var(--accent); }
+    #q::placeholder { color: var(--faint); }
+    kbd { font: 600 10.5px/1 "Segoe UI", system-ui, sans-serif; color: var(--muted); background: var(--kbd); border: 1px solid var(--hair); border-bottom-width: 2px; border-radius: 5px; padding: 3px 6px; }
+
+    #list { list-style: none; margin: 0; padding: 6px; max-height: 420px; overflow-y: auto; scroll-padding: 34px 0 6px; }
+    #list:empty { display: none; }
+    #list::-webkit-scrollbar { width: 8px; }
+    #list::-webkit-scrollbar-thumb { background: var(--hair); border-radius: 4px; }
+
+    .grp, .grp-rows { list-style: none; margin: 0; padding: 0; }
+    .sec { display: flex; justify-content: space-between; padding: 10px 10px 4px; color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
+    .grp:first-child .sec { padding-top: 4px; }
+
+    .row { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 11px; padding: 6px 10px 6px 7px; border-radius: 8px; cursor: default; transition: background .08s; }
+    .row:hover { background: var(--row-hover); }
+    .row[aria-selected="true"] { background: var(--row-sel); }
+    .row.off { opacity: .7; }
+
+    .tile { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--tile); color: var(--k, var(--c-sys)); }
+    .tile svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .tile img { width: 24px; height: 24px; }
+    .tile.bare { background: transparent; }
+    .tile .check { width: 19px; height: 19px; }
+    .tile .letter { font: 700 15px/1 "Segoe UI", system-ui, sans-serif; color: #fff; width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; }
+    .row[data-icon="link"] { --k: var(--c-link); } .row[data-icon="search"] { --k: var(--c-search); }
+    .row[data-icon="folder"] { --k: var(--c-folder); } .row[data-icon="app"] { --k: var(--c-app); }
+    .row[data-icon="file"] { --k: var(--c-file); } .row[data-icon="mail"] { --k: var(--c-mail); }
+    .row[data-icon="calc"], .row[data-icon="convert"] { --k: var(--c-calc); }
+    .row[data-icon="timer"] { --k: var(--c-time); } .row[data-icon="todo"] { --k: var(--c-todo); }
+    .row[data-icon="note"], .row[data-icon="notes"] { --k: var(--c-note); }
+
+    .txt { min-width: 0; }
+    .t { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .s { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row.done .t { color: var(--faint); text-decoration: line-through; }
+    .row[data-kind="calc"] .t, .row[data-kind="convert"] .t { font: 600 20px/1.2 "Cascadia Mono", "SF Mono", ui-monospace, Consolas, monospace; letter-spacing: -.3px; }
+
+    /* right side: only the selected row shows its verb; toggles always show state */
+    .end { display: flex; align-items: center; gap: 8px; }
+    .hint { display: none; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+    .row[aria-selected="true"] .hint { display: flex; }
+    .num { display: none; }
+    body.alt .num { display: inline-block; }
+    .switch { width: 32px; height: 18px; border-radius: 9px; background: var(--kbd); border: 1px solid var(--hair); position: relative; transition: background .15s; }
+    .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+    .switch.on { background: var(--accent); border-color: transparent; }
+    .switch.on::after { transform: translateX(14px); background: #fff; }
+    .check { width: 17px; height: 17px; border-radius: 50%; border: 1.8px solid var(--faint); display: grid; place-items: center; }
+    .check.on { background: var(--c-todo); border-color: var(--c-todo); }
+    .check.on::after { content: ""; width: 7px; height: 4px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px); }
+
+    .foot { display: flex; align-items: center; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--sep); color: var(--faint); font-size: 11.5px; }
+    .foot span { display: inline-flex; align-items: center; gap: 5px; }
+    .foot .tip { margin-left: auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+    @media (prefers-reduced-motion: reduce) { body.enter .shell { animation: none; } .row, .switch, .switch::after { transition: none; } }
+    body.still .shell { animation: none !important; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="bar">
+      <canvas id="pet" width="34" height="40" aria-hidden="true"></canvas>
+      <input id="q" type="text" autocomplete="off" spellcheck="false"
+             role="combobox" aria-expanded="true" aria-controls="list" aria-autocomplete="list"
+             placeholder="Search apps, notes, timers, anything…" />
+      <kbd>esc</kbd>
+    </div>
+    <ul id="list" role="listbox" aria-label="Quick tools"></ul>
+    <div class="foot" id="foot">
+      <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
+      <span><kbd>↵</kbd> run</span>
+      <span><kbd id="modKey">alt</kbd> numbers</span>
+      <span class="tip" id="tip">Try =12*7.5, 10m tea, todo …, g …</span>
+    </div>
+  </div>
+  <script src="patterns.js"></script>
+  <script src="cat-sprite.js"></script>
+  <script src="dog-sprite.js"></script>
+  <script src="pets.js"></script>
+  <script src="cat-preview.js"></script>
+  <script src="launcher-icons.js"></script>
+  <script src="launcher-renderer.js"></script>
+</body>
+</html>

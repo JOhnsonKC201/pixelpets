@@ -9,6 +9,11 @@ const { inQuietHours } = require('./quiet-hours');
 const focus = require('./focus');
 const mail = require('./mail');
 const cal = require('./cal');
+const tools = require('./tools');
+const { makeLogger } = require('./logger');
+const { makeReportWindow } = require('./report-window');
+const { enabledFeatures } = require('./report');
+const { wireMacEditKeys } = require('./mac-edit-keys');
 const themes = require('./themes');
 const { PATTERN_NAMES } = require('./patterns');
 const { SPECIES, SPECIES_IDS, speciesOf, coatsFor, defaultCoatIndex } = require('./pets');
@@ -60,6 +65,27 @@ let onBattery = false;                                 // running unplugged (pow
 let lowPowerBroadcast = null;                          // last effective low-power state sent to the overlay
 let origin = { x: 0, y: 0 };                           // overlay top-left in screen px
 let hot = { x: 0, y: 0, w: 0, h: 0, dragging: false }; // cat's interactive region
+let reportWin = null;                                  // "Report a problem" window (report-window.js)
+
+// Local rotating log (logger.js). Until the app is ready and knows where its data
+// folder is, errors still reach the console instead of disappearing.
+let log = {
+  info: () => {}, warn: (...a) => console.warn(...a), error: (...a) => console.error(...a),
+  flush: async () => {}, flushSync: () => {}, tail: () => [],
+};
+const logDir = () => path.join(app.getPath('userData'), 'logs');
+
+// Anything that escapes a handler is logged instead of taking the pet down, and
+// the pet says so once, pointing at the one place a person can do something.
+let tripped = false;
+function trippedOnce() {
+  if (tripped || SHOT || SHEET) return;
+  tripped = true;
+  try {
+    notify("I tripped over something, but I'm okay. If it keeps happening, tray > Report a problem.",
+      { source: 'system', os: false, dedupeMs: 0, ttl: 9000 });
+  } catch (e) { /* the notifier itself may be what broke */ }
+}
 
 // Optional `--state=` / `--pattern=` force a pose/coat for --shot previews.
 const stateArg = (process.argv.find((a) => a.startsWith('--state=')) || '').split('=')[1] || '';
@@ -384,14 +410,14 @@ function createWindow() {
   // RELOAD_MAX consecutive crashes it stops and says so, rather than retrying
   // into the same wall in silence.
   win.webContents.on('render-process-gone', (_e, details) => {
-    console.log('[render-process-gone]', JSON.stringify(details));
+    log.error('overlay renderer gone', details);
     if (SHOT || !win || win.isDestroyed() || details.reason === 'clean-exit') return;
     // A renderer that has stayed up a while is a fresh fault, not a crash loop.
     if (Date.now() - lastRenderCrashAt > RELOAD_RESET_MS) renderCrashes = 0;
     lastRenderCrashAt = Date.now();
     renderCrashes += 1;
     if (renderCrashes > RELOAD_MAX) {
-      console.log(`[render-process-gone] ${renderCrashes} crashes in a row; giving up on reload`);
+      log.error(`overlay crashed ${renderCrashes} times in a row; giving up on reload`);
       notify('{name} kept crashing, so I stopped reloading. Restarting the app may help.',
         { dedupeKey: 'render-crash-loop', dedupeMs: 60000, source: 'system' });
       return;
@@ -609,6 +635,7 @@ function persistAndBroadcast(next) {
   if (JSON.stringify(cfg.pomodoro) !== prevPomo) syncPomodoro(); // toggling/retuning restarts the loop
   if (JSON.stringify(cfg.email) !== prevEmail) mail.sync(cfg);   // re-poll when email settings change
   if (JSON.stringify(cfg.calendar) !== prevCal) cal.sync(cfg);   // re-fetch when calendar settings change
+  tools.onConfig(cfg);   // hotkey + clipboard history follow their settings
   applyConfigToOverlay();
   applyFocus();   // work mode / quiet hours / focus toggles all change whether we are "busy"
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('config', cfg);
@@ -638,7 +665,7 @@ function createTray() {
     // used, so double-click never fires there. Settings is the first menu item.
     if (process.platform !== 'darwin') tray.on('double-click', openSettings);
     rebuildTrayMenu();
-  } catch (e) { console.log('[tray-error]', e.message); }
+  } catch (e) { log.error('tray failed to start', e); }
 }
 function rebuildTrayMenu() {
   if (!tray) return;
@@ -674,6 +701,8 @@ function rebuildTrayMenu() {
       { label: '10 minutes', click: () => snoozeLast(10) },
       { label: '30 minutes', click: () => snoozeLast(30) },
     ] },
+    { type: 'separator' },
+    ...tools.trayItems(),
     { type: 'separator' },
     { label: 'Pet', submenu: speciesItems },
     { label: sp.coatNoun, submenu: coatItems },
@@ -726,6 +755,7 @@ function rebuildTrayMenu() {
       ];
     })() },
     { type: 'separator' },
+    { label: 'Report a problem…', click: () => reportWin && reportWin.open() },
     { label: 'Quit pixelpets', click: () => app.quit() },
   ]));
 }
@@ -746,28 +776,7 @@ function openSettings() {
   });
   hardenNav(settingsWin);
   settingsWin.setMenuBarVisibility(false);
-  // macOS delivers Cmd+C/V/X/A as key equivalents from the Edit menu, and this app
-  // has no menu bar at all: app.dock.hide() makes it an accessory app, and no
-  // application menu is ever installed. Without this, Cmd+V is dead in the settings
-  // window - which is exactly where the two unTypeable secrets live, a 16-character
-  // Gmail app-password and a long secret .ics URL, both in masked fields. Wiring the
-  // edits directly is the version that cannot depend on menu-bar behaviour.
-  if (process.platform === 'darwin') {
-    settingsWin.webContents.on('before-input-event', (e, input) => {
-      if (!input.meta || input.type !== 'keyDown' || !input.key) return;
-      const wc = settingsWin.webContents;
-      switch (input.key.toLowerCase()) {
-        case 'c': wc.copy(); break;
-        case 'v': wc.paste(); break;
-        case 'x': wc.cut(); break;
-        case 'a': wc.selectAll(); break;
-        case 'z': if (input.shift) wc.redo(); else wc.undo(); break;
-        case 'w': settingsWin.close(); break;
-        default: return;
-      }
-      e.preventDefault();
-    });
-  }
+  wireMacEditKeys(settingsWin, () => settingsWin.close());   // no menu bar, so Cmd+V has to be wired by hand (see mac-edit-keys.js)
   settingsWin.once('ready-to-show', () => { if (settingsWin && !settingsWin.isDestroyed()) settingsWin.show(); });
   settingsWin.loadFile(path.join(__dirname, 'settings.html'));
   settingsWin.on('closed', () => { settingsWin = null; });
@@ -791,7 +800,7 @@ function startInputHook() {
     hookStarted = true;
     if (hookRetry) { clearInterval(hookRetry); hookRetry = null; }
   } catch (e) {
-    console.log('[keyhook-error]', e.message);
+    log.warn('keyboard hook failed to start', e);
     if (process.platform === 'darwin' && !hookRetry) {
       notify('Turn on Accessibility for pixelpets in System Settings > Privacy & Security so I can react to your typing.',
         { source: 'system', dedupeKey: 'axapi', dedupeMs: 3600000, ttl: 12000, ignoreQuiet: true });
@@ -925,7 +934,8 @@ function showFirstRunTips() {
   const say = (delay, text) => tipTimers.push(setTimeout(() => {
     if (win && !win.isDestroyed()) notify(text, { source: 'tips', os: false, ttl: 9000, dedupeMs: 0 });
   }, delay));
-  say(6000, 'Double-click me for settings. Right-click to change my coat.');
+  const key = process.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
+  say(6000, `Double-click me for settings. Right-click me, or press ${key}, for quick tools.`);
   say(18000, 'Scroll any page and watch me climb.');
 }
 
@@ -1101,6 +1111,8 @@ function cleanup() {
   if (hookStarted) { try { require('uiohook-napi').uIOhook.stop(); } catch (e) { /* ignore */ } }
   try { mail.stop(); } catch (e) { /* ignore */ }
   try { cal.stop(); } catch (e) { /* ignore */ }
+  try { tools.stop(); } catch (e) { /* ignore */ }
+  try { log.info('pixelpets quitting'); log.flushSync(); } catch (e) { /* ignore */ }
   if (tray) { try { tray.destroy(); } catch (e) { /* ignore */ } tray = null; }
 }
 
@@ -1113,6 +1125,11 @@ function isTrustedSender(e) {
   // Primary + reliable: the IPC came from one of the windows WE created.
   if ((win && !win.isDestroyed() && wc === win.webContents) ||
       (settingsWin && !settingsWin.isDestroyed() && wc === settingsWin.webContents)) return true;
+  // The Quick Tools launcher is also a local file:// page, but it is the one window
+  // that takes free typing, so it gets its OWN channels (tools/index.js) and nothing
+  // else: it must never reach settings:save, the mail password or the calendar.
+  if (tools.ownsSender(wc)) return false;
+  if (reportWin && reportWin.owns(wc)) return false;   // the report window has its own channels too
   // Fallback: any local file:// frame (navigation/window.open are blocked, so this is still ours).
   try { const u = e.senderFrame && e.senderFrame.url; return typeof u === 'string' && u.startsWith('file:'); }
   catch (_) { return false; }
@@ -1141,6 +1158,10 @@ function endSetArea() {
 }
 onSecure('setarea:done', (_e, area) => { endSetArea(); if (area && cfg) persistAndBroadcast({ ...cfg, playArea: area }); });
 onSecure('quit', () => app.quit());
+// The pet's box in screen px, so the launcher can open right next to it.
+function getPetAnchor() {
+  return { x: origin.x + hot.x, y: origin.y + hot.y, w: hot.w, h: hot.h };
+}
 onSecure('sheet:image', (_e, dataUrl) => {
   try {
     const b64 = String(dataUrl || '').replace(/^data:image\/png;base64,/, '');
@@ -1152,6 +1173,7 @@ onSecure('sheet:image', (_e, dataUrl) => {
   app.quit();
 });
 onSecure('settings:open', () => openSettings());
+onSecure('report:open', () => { if (reportWin) reportWin.open(); });
 onSecure('settings:save-pattern', (_e, i) => {
   if (!cfg) return;
   persistAndBroadcast({ ...cfg, [speciesOf(cfg.species).id === 'dog' ? 'dogPattern' : 'pattern']: i });
@@ -1238,6 +1260,16 @@ app.whenReady().then(() => {
   // Must run before the first read of settings/themes/mail: the pixelcat -> pixelpets
   // rename moved userData, so on an upgrade the files are still under the old name.
   datadir.migrateFromLegacy(app);
+  if (!SHOT && !SHEET && !REEL) {
+    log = makeLogger({ dir: logDir(), echo: !app.isPackaged });
+    log.info('pixelpets started', { version: app.getVersion(), platform: process.platform, release: os.release(), arch: process.arch, electron: process.versions.electron });
+    app.on('child-process-gone', (_e, details) => log.error('child process gone', details));
+    // Only for real runs: a listener turns an uncaught exception from "exit
+    // non-zero" into "log and carry on", and `npm run test:boot` (--shot) relies
+    // on the exit code to notice a crash.
+    process.on('uncaughtException', (e) => { log.error('uncaught exception', e); trippedOnce(); });
+    process.on('unhandledRejection', (e) => { log.warn('unhandled promise rejection', e instanceof Error ? e : String(e)); });
+  }
   themesCache = themes.load();
   if (REEL) return createReelWindow();   // capture-only: no tray, no hooks, no scheduler
   if (!SHOT && !SHEET) {
@@ -1256,6 +1288,22 @@ app.whenReady().then(() => {
   createWindow();
   if (!SHOT && !SHEET) {
     createTray(); startScheduler(); mail.init(notify, () => cfg); mail.sync(cfg); cal.init(notify, () => cfg); cal.sync(cfg);
+    tools.init({
+      notify, getCfg: () => cfg, persist: persistAndBroadcast, sendAction, triggerBreak, openSettings,
+      rebuildTray: rebuildTrayMenu, hardenNav, onSecure, handleSecure, getPetAnchor,
+      isBusy: () => focusState().busy,
+      inQuiet: () => !!(cfg && inQuietHours(cfg.quietHours, new Date())),
+      isSettingsFocused: () => !!(settingsWin && !settingsWin.isDestroyed() && settingsWin.isFocused()),
+      getSettingsWin: () => (settingsWin && !settingsWin.isDestroyed() ? settingsWin : null),
+      getThemes: () => themesCache, builtinCoatCount: () => PATTERN_NAMES.length, log,
+    });
+    reportWin = makeReportWindow({
+      hardenNav, wireMacEditKeys, log, logDir: logDir(),
+      getInfo: () => ({
+        version: app.getVersion(), platform: process.platform, osRelease: os.release(), arch: process.arch,
+        electron: process.versions.electron, features: enabledFeatures(cfg), logLines: log.tail(60),
+      }),
+    });
     // Auto low-power on battery: track power state and re-derive the flag on change.
     try { onBattery = powerMonitor.isOnBatteryPower(); } catch (e) { onBattery = false; }
     try {

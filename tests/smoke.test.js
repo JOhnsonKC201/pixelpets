@@ -189,6 +189,22 @@ test('calendar config normalizes (url validation + webcal + clamp)', () => {
   assert.deepStrictEqual(normalize({ calendar: 'junk' }).calendar, { on: false, icsUrl: '', leadMin: 10 });
 });
 
+test('Quick Tools config normalizes (hotkey enum, privacy defaults, shortcut allowlist)', () => {
+  const { normalize, DEFAULTS } = require(path.join(ROOT, 'src', 'config.js'));
+  assert.deepStrictEqual(normalize({}).tools, DEFAULTS.tools);
+  assert.deepStrictEqual(normalize({}).todos, DEFAULTS.todos);
+  assert.strictEqual(normalize({}).tools.clipboard, false, 'clipboard history is opt-in');
+  assert.strictEqual(normalize({}).tools.eyeRest, false, 'eye-rest nudges are opt-in');
+  assert.strictEqual(normalize({ tools: { hotkey: 'Ctrl+Alt+Delete' } }).tools.hotkey, DEFAULTS.tools.hotkey);
+  assert.strictEqual(normalize({ tools: { hotkey: 'off' } }).tools.hotkey, 'off');
+  assert.strictEqual(normalize({ tools: { search: 'evil' } }).tools.search, 'google');
+  assert.strictEqual(normalize({ tools: { todoNudge: '' } }).tools.todoNudge, '');
+  assert.strictEqual(normalize({ tools: { todoNudge: '25:99' } }).tools.todoNudge, '12:30');
+  const sc = normalize({ tools: { shortcuts: [{ target: 'javascript:alert(1)' }, { target: 'https://example.com' }] } }).tools.shortcuts;
+  assert.deepStrictEqual(sc.map((s) => s.target), ['https://example.com/']);
+  assert.deepStrictEqual(normalize({ tools: 'junk', todos: 'junk' }).tools, DEFAULTS.tools);
+});
+
 test('cal-worker isBlockedIp allowlist blocks private/loopback/metadata, allows public', () => {
   const { isBlockedIp } = require(path.join(ROOT, 'src', 'cal-worker.js'));
   // blocked: loopback, private, link-local + cloud metadata, CGNAT, multicast/reserved

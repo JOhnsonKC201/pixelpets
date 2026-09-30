@@ -32,7 +32,7 @@ const LEGACY_NAME = 'pixelcat';
 // Everything the app persists per user. Kept in one place so a new store cannot
 // quietly opt out of the migration: config.js, themes.js, mail.js and main.js each
 // own one of these.
-const DATA_FILES = ['settings.json', 'themes.json', 'email.cred', 'notify-history.json'];
+const DATA_FILES = ['settings.json', 'themes.json', 'email.cred', 'notify-history.json', 'notes.md'];
 
 const MARKER = '.migrated-from-pixelcat';
 

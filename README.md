@@ -95,14 +95,31 @@ The pet lives on a transparent overlay above your windows that clicks through ev
 | | |
 |---|---|
 | Drag it | It stretches like mochi, and wherever you drop it becomes its new home spot |
-| Right-click it | Next coat |
+| Right-click it | Quick Tools (Shift+right-click for the next coat) |
+| Ctrl+Shift+Space (Cmd+Shift+Space on a Mac) | Quick Tools from any app |
 | Tap it | A quick pet (happy eyes, hearts, a chirp) |
 | Hover over its head | Happy eyes, floating hearts and a purr |
 | Hover over its body | It leans into your hand with its tail up |
 | Type in any app | It kneads; type fast enough and it overheats |
 | Scroll in any app | It swipes at a leaf, or climbs a rope on the four coats with painted climb art |
 | Double-click it | Settings |
-| Tray icon | Settings, Start break now, coat picker, play area, sound, hunt and mood toggles, Quit |
+| Tray icon | Settings, Start break now, Quick Tools, Keep screen awake, Lock screen, running timers, the Clipboard history and Eye-rest switches, coat picker, play area, sound, hunt and mood toggles, Report a problem, Quit |
+
+### Quick Tools
+
+One box for the small things you do all day. Type something and press Enter:
+
+| Type | What happens |
+|------|--------------|
+| part of a pinned name, like `mail.google` or `projects` | Opens a site, folder or app you pinned in Settings > Tools |
+| `=12*7.5`, `5 km in mi`, `72 f to c` | Calculates or converts; Enter copies the answer |
+| `g how to center a div` | Searches the web (`ddg` and `b` work too) |
+| `note call the bank` | Adds a timestamped line to your notes file |
+| `todo email the lab`, `done 1` | Today's to-dos, five at most; the pet cheers when you tick one off |
+| `10m tea`, `1h30m` | A timer the pet announces when it's up |
+| `snip`, `lock`, `awake` | Screen snip, lock the screen, keep the screen awake |
+
+Clipboard history (the last 20 copies, kept in memory only, skipping passwords and keys) and 20-20-20 eye-rest nudges are opt-in switches in Settings > Tools. The low battery alert next to them is on by default. [Everything Quick Tools does.](docs/features.md#quick-tools)
 
 Settings are saved to `settings.json` in your app-data folder (`%APPDATA%/pixelpets/` on Windows, `~/Library/Application Support/pixelpets/` on macOS). If you had the older pixelcat version, your settings move over on first launch. Timers and reminders only fire while the app is running.
 
@@ -127,6 +144,8 @@ node agent-hook.js idle       # back to normal
 Because the pet reacts to typing and scrolling, it listens to global input events, and that deserves a straight answer. Input is only used to trigger an animation, right then, on your machine. Keystrokes are never logged, saved or sent anywhere, and the pet itself is only told that a key was pressed, not which one.
 
 There's no telemetry and no auto-update. The app doesn't touch the network at all unless you turn on the mail or calendar alerts, and those only talk to the servers you give them, from separate worker processes. Your mail app password is encrypted with Electron's `safeStorage` and never written to `settings.json`.
+
+pixelpets keeps a small diagnostic log on your machine (`logs/pixelpets.log` in the app-data folder, three files of at most 1 MB). Emails, links, tokens and your user name inside file paths are removed before a line is written. It's never uploaded: **Report a problem** (tray, or Settings > Tools) shows you the exact text first, and only your browser ever carries it, when you click through to GitHub's issue form.
 
 ## Documentation
 
