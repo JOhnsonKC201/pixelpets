@@ -65,6 +65,9 @@ const DEFAULTS = {
   reminders: [],       // [{ id, hhmm: 'HH:MM', message, recur, days, lastFired }]
   email: { on: false, host: '', port: 993, user: '', secure: true, intervalMin: 5, vip: [] }, // IMAP unread alerts (app-password stored separately, encrypted); vip senders break through Focus Guard
   calendar: { on: false, icsUrl: '', leadMin: 10 }, // nudge before events from a secret .ics URL
+  // Update checks are OFF until the user turns them on: the app promises not to
+  // touch the network unless asked. 'beta' also takes pre-releases.
+  updates: { check: false, channel: 'stable' },
   // Quick Tools launcher (src/tools/). Clipboard history and eye-rest are opt-in;
   // nothing the clipboard holds is ever written here.
   tools: {
@@ -186,6 +189,10 @@ function normalize(cfg) {
       if (/^webcal:\/\//i.test(url)) url = 'https://' + url.slice(9);
       if (url && !/^https?:\/\//i.test(url)) url = '';
       return { on: !!k.on, icsUrl: url, leadMin: clampInt(k.leadMin, 0, 1440, 10) };
+    })(),
+    updates: (() => {
+      const u = (c.updates && typeof c.updates === 'object') ? c.updates : {};
+      return { check: u.check === true, channel: u.channel === 'beta' ? 'beta' : 'stable' };
     })(),
     tools: (() => {
       const t = (c.tools && typeof c.tools === 'object') ? c.tools : {};
