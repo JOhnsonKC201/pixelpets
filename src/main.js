@@ -33,6 +33,7 @@ const { onRendererGone } = require('./main/crash-reload');
 const { installAppGuards } = require('./main/app-guards');
 const { startSoak } = require('./main/soak');
 const { captureShot } = require('./main/shot');
+const { createSettingsWindow } = require('./main/settings-window');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -370,22 +371,7 @@ function rebuildTrayMenu() {
 // ---- settings window -------------------------------------------------------
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); return; }
-  settingsWin = new BrowserWindow({
-    // Width is pinned (the layout is designed for one column at 400), but height is
-    // now draggable: the tallest section still overflows 640px on a short screen and
-    // a fixed window left no way out of that but scrolling.
-    width: 400, height: 640, minWidth: 400, maxWidth: 400, minHeight: 420,
-    resizable: true, fullscreenable: false, maximizable: false,
-    title: 'pixelpets settings', skipTaskbar: false, alwaysOnTop: true,
-    icon: path.join(__dirname, '..', 'assets', 'icon.png'),   // taskbar icon for the settings window
-    show: false, backgroundColor: '#191b22',   // dark from the first paint - no white flash
-    webPreferences: { preload: path.join(__dirname, 'settings-preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
-  });
-  hardenNav(settingsWin);
-  settingsWin.setMenuBarVisibility(false);
-  wireMacEditKeys(settingsWin, () => settingsWin.close());   // no menu bar, so Cmd+V has to be wired by hand (see mac-edit-keys.js)
-  settingsWin.once('ready-to-show', () => { if (settingsWin && !settingsWin.isDestroyed()) settingsWin.show(); });
-  settingsWin.loadFile(path.join(__dirname, 'settings.html'));
+  settingsWin = createSettingsWindow();   // src/main/settings-window.js
   settingsWin.on('closed', () => { settingsWin = null; });
 }
 

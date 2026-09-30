@@ -48,7 +48,7 @@ test('the report window, like the launcher, is kept to its own channels', () => 
 });
 
 test('every window is sandboxed with context isolation and no Node', () => {
-  const files = ['main.js', 'report-window.js', path.join('tools', 'launcher-window.js'), path.join('main', 'reel-window.js')];
+  const files = ['main.js', 'report-window.js', path.join('tools', 'launcher-window.js'), path.join('main', 'reel-window.js'), path.join('main', 'settings-window.js')];
   for (const f of files) {
     const src = read(f);
     const prefs = [...src.matchAll(/webPreferences:\s*\{([^}]*)\}/g)].map((m) => m[1]);
