@@ -36,6 +36,9 @@ function isBlockedIp(ip) {
     const a = ip.toLowerCase();
     if (a === '::1' || a === '::') return true;
     if (a.startsWith('::ffff:')) return isBlockedIp(a.slice(7));    // IPv4-mapped
+    // Other forms that carry an IPv4 address inside: IPv4-compatible (::a.b.c.d),
+    // NAT64 (64:ff9b::/96) and 6to4 (2002::/16). No public calendar needs them.
+    if (a.startsWith('::') || a.startsWith('64:ff9b:') || a.startsWith('2002:')) return true;
     if (a.startsWith('fe80') || a.startsWith('fc') || a.startsWith('fd')) return true;
     return false;
   }

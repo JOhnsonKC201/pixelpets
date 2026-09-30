@@ -32,6 +32,15 @@ test('a corrupt file is kept, so the next save cannot erase the coats in it', ()
   assert.strictEqual(fs.readFileSync(path.join(dir, copies[0]), 'utf8'), broken);
 });
 
+test('launching again over the same corrupt file does not pile up copies', () => {
+  const { dir, file } = tempFile('{"themes": [');
+  for (let launch = 0; launch < 5; launch++) themes.load(file);
+  assert.strictEqual(fs.readdirSync(dir).filter((f) => f.startsWith('themes.json.corrupt-')).length, 1);
+  fs.writeFileSync(file, '{"themes": [{');   // corrupt in a different way: worth its own copy
+  themes.load(file);
+  assert.strictEqual(fs.readdirSync(dir).filter((f) => f.startsWith('themes.json.corrupt-')).length, 2);
+});
+
 test('no file means no custom coats yet, and nothing is written', () => {
   const { dir, file } = tempFile();
   assert.deepStrictEqual(themes.load(file), []);

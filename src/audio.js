@@ -53,10 +53,6 @@ function audio() {
   } catch (e) { actx = null; }
   return actx;
 }
-// Optional REAL meow: if a recording exists at assets/meow.(ogg|mp3|wav) it REPLACES the
-// synth meow. Loaded once via XHR - the overlay runs from file://, where fetch() is
-// blocked but XHR can read a local file. If it's absent or won't decode, the synth plays.
-// (This is the ONLY optional asset; everything else stays 100% synthesized.)
 // Is the pet a dog right now? The overlay defines isDog() and loads AFTER this
 // file, so this resolves at CALL time, never at load time.
 function voiceIsDog() { return typeof isDog === 'function' && isDog(); }

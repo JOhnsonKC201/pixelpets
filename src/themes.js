@@ -50,8 +50,11 @@ function load(file = filePath()) {
   } catch (e) {
     // Corrupt: start empty, but keep the file. The next add or delete writes a
     // new list over it, and every coat the user designed is in this one.
+    // Named by content, not time: load() does not rewrite the file, so the
+    // same broken file is seen on every launch and must be copied only once.
     try {
-      const dest = `${file}.corrupt-${Date.now()}`;
+      const tag = require('crypto').createHash('sha256').update(raw).digest('hex').slice(0, 12);
+      const dest = `${file}.corrupt-${tag}`;
       if (!fs.existsSync(dest)) fs.copyFileSync(file, dest);
     } catch (e2) { /* best effort */ }
     return [];
