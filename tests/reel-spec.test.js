@@ -15,7 +15,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const reel = require('../scripts/make-reel.js');
 const renderer = require('../src/overlay/parts').readOverlaySource();
 
@@ -34,12 +33,11 @@ test('the drag driver still names variables that exist in the overlay (src/overl
   // The mochi clip cannot use --state=mochi (that branch pins the springs, giving a
   // frozen pose), so it drives a real drag by assigning the overlay's own top-level
   // `let`s. Renaming any of them turns the clip back into a cat sitting still.
-  const main = read(path.join('src', 'main.js'));
-  const driver = main.match(/const DRAG_DRIVER = `([\s\S]*?)`;/);
-  assert.ok(driver, 'src/main.js no longer defines DRAG_DRIVER');
+  const { DRAG_DRIVER } = require('../src/main/reel-window');
+  assert.ok(typeof DRAG_DRIVER === 'string' && DRAG_DRIVER.length, 'src/main/reel-window.js no longer exports DRAG_DRIVER');
 
   for (const name of ['grabbing', 'cursor', 'petBurstUntil', 'petTouchUntil']) {
-    assert.match(driver[1], new RegExp(`\\b${name}\\b`), `DRAG_DRIVER stopped using ${name}`);
+    assert.match(DRAG_DRIVER, new RegExp(`\\b${name}\\b`), `DRAG_DRIVER stopped using ${name}`);
     assert.match(renderer, new RegExp(`^let [^;\\n]*\\b${name}\\b`, 'm'),
       `DRAG_DRIVER assigns ${name}, but the overlay no longer declares it at top level`);
   }
