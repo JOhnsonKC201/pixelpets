@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, dialog, Notification, powerMonitor } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, dialog, Notification, powerMonitor, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -30,6 +30,7 @@ const { makeAutostart } = require('./main/autostart');
 const { keepOnTop } = require('./main/keep-on-top');
 const { floorGeometry } = require('./main/geometry');
 const { onRendererGone } = require('./main/crash-reload');
+const { installAppGuards } = require('./main/app-guards');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -738,6 +739,9 @@ app.whenReady().then(() => {
     process.on('uncaughtException', (e) => { log.error('uncaught exception', e); trippedOnce(); });
     process.on('unhandledRejection', (e) => { log.warn('unhandled promise rejection', e instanceof Error ? e : String(e)); });
   }
+  // Before any window exists: no web permissions, and no navigation, pop-ups or
+  // <webview> in any page (src/main/app-guards.js).
+  installAppGuards({ app, session, log: { warn: (...a) => log.warn(...a) } });
   themesCache = themes.load();
   if (REEL) return createReelWindow(cli);   // capture-only: no tray, no hooks, no scheduler
   if (!SHOT && !SHEET) {
