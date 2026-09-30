@@ -25,6 +25,8 @@ const { makeNotifyHistory, relTime } = require('./main/notify-history');
 const { watchBridge } = require('./main/bridge');
 const { makeSecureIpc } = require('./main/secure-ipc');
 const { registerSettingsIpc } = require('./main/settings-ipc');
+const { makePomodoro } = require('./main/pomodoro');
+const { makeAutostart } = require('./main/autostart');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -102,32 +104,7 @@ if (process.platform === 'darwin' && app.dock && !SHOT && !SHEET && !REEL) app.d
 
 // Launch-at-login (unpackaged): run `electron.exe <appDir>` on login.
 const APP_DIR = path.resolve(__dirname, '..');
-function setAutostart(enabled) {
-  // `path` and `args` are documented win32-only and are silently dropped on macOS.
-  // Worse, from source process.execPath is Electron's own binary, so macOS would
-  // register Electron.app and the user would get a bare Electron window at login
-  // instead of a pet. Only register a packaged bundle there.
-  if (process.platform === 'darwin') {
-    if (!app.isPackaged) return;
-    try { app.setLoginItemSettings({ openAtLogin: enabled }); } catch (e) { /* not fatal */ }
-    return;
-  }
-  app.setLoginItemSettings({ openAtLogin: enabled, path: process.execPath, args: enabled ? [APP_DIR] : [] });
-}
-
-// Whether we have ever enabled launch-at-login on this machine. Only consulted on
-// macOS, where the login item is user-visible and user-togglable: after the first
-// run the user owns that switch, not us. A missing/unreadable marker reads as "not
-// yet asked", so the worst case is asking once more, never overriding repeatedly.
-function autostartMarkerPath() { return path.join(app.getPath('userData'), '.autostart-set'); }
-function autostartAsked() { try { return fs.existsSync(autostartMarkerPath()); } catch (e) { return false; } }
-function markAutostartAsked() {
-  try {
-    const fp = autostartMarkerPath();
-    fs.mkdirSync(path.dirname(fp), { recursive: true });
-    fs.writeFileSync(fp, new Date().toISOString());
-  } catch (e) { /* best effort: at worst we offer again next launch */ }
-}
+const autostart = makeAutostart({ app, appDir: APP_DIR });   // src/main/autostart.js
 
 // --- low-power state -------------------------------------------------------
 // Effective low power = user toggled it on, OR (auto-on-battery is on AND we're
@@ -241,7 +218,7 @@ function createWindow() {
 
   // Push current settings to the overlay as soon as (and every time) it loads,
   // so first paint already has the name / coat / sound+hunt flags.
-  win.webContents.on('did-finish-load', () => { sendThemes(); if (!SHOT && !SHEET) { applyConfigToOverlay(); sendPomo(); sendGeom(); showFirstRunTips(); } });
+  win.webContents.on('did-finish-load', () => { sendThemes(); if (!SHOT && !SHEET) { applyConfigToOverlay(); pomodoro.publish(); sendGeom(); showFirstRunTips(); } });
 
   // System-wide keyboard hook so the cat reacts to typing in ANY app.
   // (Skipped for --shot previews - a screenshot has no need for a global hook,
@@ -391,7 +368,7 @@ function persistAndBroadcast(next) {
   const prevCal = cfg ? JSON.stringify(cfg.calendar) : '';
   cfg = config.save(next);
   if (cfg.breakMinutes !== prevBreak) breakAnchor = Date.now();  // editing the interval restarts it
-  if (JSON.stringify(cfg.pomodoro) !== prevPomo) syncPomodoro(); // toggling/retuning restarts the loop
+  if (JSON.stringify(cfg.pomodoro) !== prevPomo) pomodoro.sync(); // toggling/retuning restarts the loop
   if (JSON.stringify(cfg.email) !== prevEmail) mail.sync(cfg);   // re-poll when email settings change
   if (JSON.stringify(cfg.calendar) !== prevCal) cal.sync(cfg);   // re-fetch when calendar settings change
   tools.onConfig(cfg);   // hotkey + clipboard history follow their settings
@@ -521,37 +498,13 @@ function giveTreat() {
   win.webContents.send(speciesOf(cfg && cfg.species).giveChannel);
 }
 
-// ---- Pomodoro: focus/break loops. Main owns the phase clock (the renderer may
-// throttle/pause); the renderer just draws a countdown from { phase, endsAt }.
-// Phase flips ride the existing reactions: focus->break = the stretch break,
-// break->focus = a "back to focus" reminder bubble.
-let pomoPhase = 'focus', pomoEndsAt = 0, pomoTimer = null;
-function sendPomo() {
-  const on = !!(cfg && cfg.pomodoro && cfg.pomodoro.on);
-  if (win && !win.isDestroyed()) win.webContents.send('pomo', { on, phase: pomoPhase, endsAt: pomoEndsAt });
-}
-function pomoFlip() {
-  if (!cfg || !cfg.pomodoro || !cfg.pomodoro.on) return;
-  if (pomoPhase === 'focus') {
-    pomoPhase = 'break'; pomoEndsAt = Date.now() + cfg.pomodoro.breakMin * 60000;
-    triggerBreak();                                              // big stretch + meow
-  } else {
-    pomoPhase = 'focus'; pomoEndsAt = Date.now() + cfg.pomodoro.focusMin * 60000;
-    notify('Back to focus, {name}!', { source: 'pomo' });
-  }
-  sendPomo(); armPomoTimer();
-}
-function armPomoTimer() {
-  if (pomoTimer) { clearTimeout(pomoTimer); pomoTimer = null; }
-  if (!cfg || !cfg.pomodoro || !cfg.pomodoro.on) return;
-  pomoTimer = setTimeout(pomoFlip, Math.max(250, pomoEndsAt - Date.now()));
-}
-// (Re)start or stop the loop whenever the pomodoro config changes.
-function syncPomodoro() {
-  if (cfg && cfg.pomodoro && cfg.pomodoro.on) { pomoPhase = 'focus'; pomoEndsAt = Date.now() + cfg.pomodoro.focusMin * 60000; }
-  else { pomoEndsAt = 0; }
-  sendPomo(); armPomoTimer();
-}
+// Pomodoro focus/break loop (src/main/pomodoro.js). Main owns the clock.
+const pomodoro = makePomodoro({
+  getCfg: () => cfg,
+  send: (state) => { if (win && !win.isDestroyed()) win.webContents.send('pomo', state); },
+  onBreak: () => triggerBreak(),                                   // big stretch + meow
+  onFocus: () => notify('Back to focus, {name}!', { source: 'pomo' }),
+});
 // Single choke-point for every user-facing message: an in-overlay speech bubble
 // (the renderer plays the meow) plus an optional Windows toast. Every producer -
 // reminders, pomodoro, break, email, calendar, the external bridge - routes here.
@@ -729,11 +682,11 @@ function tick() {
   if (onceFired) persistAndBroadcast({ ...cfg });
   if (cfg.breakMinutes > 0 && Date.now() - breakAnchor >= cfg.breakMinutes * 60000) triggerBreak();
   // Pomodoro catch-up: if the exact-time flip was lost to a sleep/stall, flip now.
-  if (cfg.pomodoro && cfg.pomodoro.on && pomoEndsAt && Date.now() > pomoEndsAt + 1000) pomoFlip();
+  pomodoro.catchUp();   // a flip the timer missed (sleep, a busy loop)
 }
 function startScheduler() {
   breakAnchor = Date.now();
-  syncPomodoro();                            // resume the pomodoro loop if it's enabled
+  pomodoro.sync();                           // resume the pomodoro loop if it's enabled
   tick();                                    // fire immediately (catch a launch late in the minute)
   scheduleTimer = setInterval(tick, 20000);  // sample each clock-minute ~3x; dedupe handles repeats
 }
@@ -748,7 +701,7 @@ function cleanup() {
   if (topTimer) clearInterval(topTimer);
   if (hookRetry) { clearInterval(hookRetry); hookRetry = null; }
   if (scheduleTimer) clearInterval(scheduleTimer);
-  if (pomoTimer) clearTimeout(pomoTimer);
+  pomodoro.stop();
   notifyHistory.flush();   // write any pending history now so it can't fire mid-teardown
   if (bridge) bridge.stop();
   if (hookStarted) { try { require('uiohook-napi').uIOhook.stop(); } catch (e) { /* ignore */ } }
@@ -845,10 +798,7 @@ app.whenReady().then(() => {
     // openAtLogin on every launch would silently undo it. Ask once, on the first run
     // that ever gets this far, and then leave it alone - the marker file mirrors the
     // pattern datadir.js already uses for its one-time migration.
-    if (process.argv.includes('--autostart=off')) setAutostart(false);
-    else if (process.platform !== 'darwin') setAutostart(true);
-    else if (!autostartAsked()) { setAutostart(true); markAutostartAsked(); }
-    if (process.argv.includes('--autostart=off')) { console.log('[autostart disabled]'); return app.quit(); }
+    if (autostart.applyOnLaunch(process.argv)) { console.log('[autostart disabled]'); return app.quit(); }
     cfg = config.load();
     notifyHistory.load();   // restore the recent-notifications recap from last session
   }
