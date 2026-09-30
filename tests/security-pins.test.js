@@ -60,3 +60,30 @@ test('every window is sandboxed with context isolation and no Node', () => {
     }
   }
 });
+
+test('release builds cannot be run as plain Node or debugged from the command line', () => {
+  const fuses = require('../package.json').build.electronFuses;
+  assert.ok(fuses, 'package.json build.electronFuses is missing');
+  assert.strictEqual(fuses.runAsNode, false);
+  assert.strictEqual(fuses.enableNodeOptionsEnvironmentVariable, false);
+  assert.strictEqual(fuses.enableNodeCliInspectArguments, false);
+  assert.strictEqual(fuses.onlyLoadAppFromAsar, true);
+  assert.strictEqual(fuses.enableEmbeddedAsarIntegrityValidation, true);
+  // audio.js reads an optional local meow file over file://, which needs these privileges.
+  assert.strictEqual(fuses.grantFileProtocolExtraPrivileges, true);
+});
+
+test('nothing relies on running the app binary as Node', () => {
+  // The RunAsNode fuse is off, so ELECTRON_RUN_AS_NODE does nothing in a
+  // release build. Workers go through utilityProcess (worker-host.js).
+  const offenders = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name.endsWith('.js') && /ELECTRON_RUN_AS_NODE['"]?\s*:/.test(fs.readFileSync(full, 'utf8'))) offenders.push(path.relative(SRC, full));
+    }
+  };
+  walk(SRC);
+  assert.deepStrictEqual(offenders, []);
+});

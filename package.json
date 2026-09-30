@@ -59,6 +59,17 @@
     "productName": "pixelpets",
     "npmRebuild": false,
     "afterPack": "scripts/adhoc-sign.js",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableCookieEncryption": true,
+      "onlyLoadAppFromAsar": true,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "loadBrowserProcessSpecificV8Snapshot": false,
+      "grantFileProtocolExtraPrivileges": true,
+      "resetAdHocDarwinSignature": true
+    },
     "directories": {
       "output": "dist"
     },
