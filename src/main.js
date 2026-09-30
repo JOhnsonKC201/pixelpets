@@ -20,6 +20,8 @@ const { SPECIES, SPECIES_IDS, speciesOf, coatsFor, defaultCoatIndex } = require(
 const { parseCli, SHOT_CANVAS } = require('./main/cli');
 const { hardenNav } = require('./main/harden-nav');
 const { createReelWindow } = require('./main/reel-window');
+const { buildTrayTemplate } = require('./main/tray-menu');
+const { makeNotifyHistory, relTime } = require('./main/notify-history');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -495,92 +497,19 @@ function rebuildTrayMenu() {
   // The tray follows the active species: a dog owner picks a BREED, not a coat,
   // and each species remembers its own choice in its own config field.
   const sp = speciesOf(cfg && cfg.species);
-  const isDogCfg = sp.id === 'dog';
-  const coatField = isDogCfg ? 'dogPattern' : 'pattern';
-  const curCoat = cfg ? cfg[coatField] : 0;
-  const allCoats = (isDogCfg ? coatsFor('dog') : PATTERN_NAMES).concat(isDogCfg ? [] : themesCache.map((t) => t.name));
-  const coatItems = allCoats.map((name, i) => ({
-    label: name, type: 'radio', checked: curCoat === i,
-    click: () => persistAndBroadcast({ ...cfg, [coatField]: i }),
-  }));
-  const speciesItems = SPECIES_IDS.map((id) => ({
-    label: `${SPECIES[id].emoji}  ${SPECIES[id].label}`, type: 'radio', checked: sp.id === id,
-    click: () => persistAndBroadcast({ ...cfg, species: id }),
-  }));
-  const recent = notifyHistory.slice(-10).reverse();
-  const recentItems = recent.length
-    ? recent.map((n) => ({
-        label: relTime(n.ts) + ' - ' + String(n.message || '').replace(/\s+/g, ' ').slice(0, 48),
-        click: () => notify(n.message, { source: 'recap', recap: true, dedupeMs: 0, os: false }),   // re-show as a bubble
-      })).concat([{ type: 'separator' }, { label: 'Clear', click: () => { notifyHistory = []; saveNotifyHistorySoon(); rebuildTrayMenu(); } }])
-    : [{ label: '(nothing yet)', enabled: false }];
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Settings…', click: openSettings },
-    { label: 'Start break now', click: triggerBreak },
-    { label: sp.giveLabel, click: giveTreat },
-    { label: 'Recent notifications', submenu: recentItems },
-    { label: 'Snooze last reminder', submenu: [
-      { label: '5 minutes', click: () => snoozeLast(5) },
-      { label: '10 minutes', click: () => snoozeLast(10) },
-      { label: '30 minutes', click: () => snoozeLast(30) },
-    ] },
-    { type: 'separator' },
-    ...tools.trayItems(),
-    { type: 'separator' },
-    { label: 'Pet', submenu: speciesItems },
-    { label: sp.coatNoun, submenu: coatItems },
-    { label: 'Follow cursor', type: 'checkbox', checked: !!(cfg && cfg.followCursor), click: () => persistAndBroadcast({ ...cfg, followCursor: !cfg.followCursor }) },
-    { label: 'Mouse hunt', type: 'checkbox', checked: !!(cfg && cfg.huntOn), click: () => persistAndBroadcast({ ...cfg, huntOn: !cfg.huntOn }) },
-    { label: sp.playToggleLabel, type: 'checkbox', checked: !(cfg && cfg.butterflyOn === false), click: () => persistAndBroadcast({ ...cfg, butterflyOn: !(cfg && cfg.butterflyOn !== false) }) },
-    { label: 'Mood reactions', type: 'checkbox', checked: !(cfg && cfg.moodOn === false), click: () => persistAndBroadcast({ ...cfg, moodOn: !(cfg && cfg.moodOn !== false) }) },
-    { label: 'Startle at cursor', type: 'checkbox', checked: !(cfg && cfg.startleOn === false), click: () => persistAndBroadcast({ ...cfg, startleOn: !(cfg && cfg.startleOn !== false) }) },
-    { label: 'Mood', submenu: [
-      { label: 'Zoomies!', click: () => sendMood('zoomies') },
-      { label: 'Calm down', click: () => sendMood('calm') },
-    ] },
-    { label: 'Pomodoro', type: 'checkbox', checked: !!(cfg && cfg.pomodoro && cfg.pomodoro.on), click: () => persistAndBroadcast({ ...cfg, pomodoro: { ...cfg.pomodoro, on: !(cfg.pomodoro && cfg.pomodoro.on) } }) },
-    { label: 'Play area', submenu: [
-      { label: 'Whole screen', type: 'radio', checked: !(cfg && cfg.playArea), click: () => persistAndBroadcast({ ...cfg, playArea: null }) },
-      { label: 'Bottom strip', click: () => persistAndBroadcast({ ...cfg, playArea: { x: 0, y: 0.78, w: 1, h: 0.22 } }) },
-      { label: 'Top strip', click: () => persistAndBroadcast({ ...cfg, playArea: { x: 0, y: 0, w: 1, h: 0.25 } }) },
-      { label: 'Left third', click: () => persistAndBroadcast({ ...cfg, playArea: { x: 0, y: 0, w: 0.34, h: 1 } }) },
-      { label: 'Right third', click: () => persistAndBroadcast({ ...cfg, playArea: { x: 0.66, y: 0, w: 0.34, h: 1 } }) },
-      { label: 'Bottom-right', click: () => persistAndBroadcast({ ...cfg, playArea: { x: 0.6, y: 0.55, w: 0.4, h: 0.45 } }) },
-      { type: 'separator' },
-      { label: 'Set play area (drag)…', click: startSetArea },
-    ] },
-    { label: 'Always on top', type: 'checkbox', checked: !(cfg && cfg.onTop === false), click: () => persistAndBroadcast({ ...cfg, onTop: !(cfg && cfg.onTop !== false) }) },
-    { label: 'Wander', type: 'checkbox', checked: !(cfg && cfg.roamOn === false), click: () => persistAndBroadcast({ ...cfg, roamOn: !(cfg && cfg.roamOn !== false) }) },
-    { label: `Work mode (stay put, no ${sp.playNoun})`, type: 'checkbox', checked: !!(cfg && cfg.workMode), click: () => persistAndBroadcast({ ...cfg, workMode: !(cfg && cfg.workMode) }) },
-    { label: 'Rest corner', submenu: [
-      { label: 'Bottom-left', type: 'radio', checked: !!(cfg && cfg.restSide === 'left'), click: () => persistAndBroadcast({ ...cfg, restSide: 'left' }) },
-      { label: 'Bottom-right', type: 'radio', checked: !(cfg && cfg.restSide === 'left'), click: () => persistAndBroadcast({ ...cfg, restSide: 'right' }) },
-      { type: 'separator' },
-      // Dragging the pet somewhere makes that spot its home, and the radios above cannot undo
-      // that on their own: re-picking the corner already selected changes no setting, so the
-      // renderer never hears about it. This is the way back.
-      { label: 'Send it home (forget the drop spot)', click: () => sendAction('home') },
-    ] },
-    { label: 'Stay on the floor', type: 'checkbox', checked: !(cfg && cfg.floorLock === false), click: () => persistAndBroadcast({ ...cfg, floorLock: !(cfg && cfg.floorLock !== false) }) },
-    { label: onBattery ? 'Low power mode (on battery)' : 'Low power mode', type: 'checkbox', checked: effectiveLowPower(), click: () => persistAndBroadcast({ ...cfg, lowPower: !(cfg && cfg.lowPower) }) },
-    { label: 'Sound', type: 'checkbox', checked: !!(cfg && cfg.soundOn), click: () => persistAndBroadcast({ ...cfg, soundOn: !cfg.soundOn }) },
-    { label: '🎸 Lobby Jam', submenu: (() => {
-      const lj = (cfg && cfg.lobbyJam) || { on: false, mood: 'cozy' };
-      const MOODS = [['cozy', 'Cozy café'], ['dreamy', 'Dreamy'], ['upbeat', 'Upbeat lounge'], ['focus', 'Deep focus'], ['rain', 'Rainy study'], ['sleepy', 'Sleepy night']];
-      return [
-        { label: 'Play music', type: 'checkbox', checked: !!lj.on, click: () => persistAndBroadcast({ ...cfg, lobbyJam: { ...lj, on: !lj.on } }) },
-        { type: 'separator' },
-        // Picking a mood sets the MOOD. It used to also force on:true, so clicking
-        // the mood you already had selected - the most natural way to check which
-        // one is active - started the music you had deliberately left off.
-        ...MOODS.map(([id, label]) => ({ label, type: 'radio', checked: (lj.mood || 'cozy') === id,
-          click: () => persistAndBroadcast({ ...cfg, lobbyJam: { ...lj, mood: id } }) })),
-      ];
-    })() },
-    { type: 'separator' },
-    { label: 'Report a problem…', click: () => reportWin && reportWin.open() },
-    { label: 'Quit pixelpets', click: () => app.quit() },
-  ]));
+  const coatNames = sp.id === 'dog' ? coatsFor('dog') : PATTERN_NAMES.concat(themesCache.map((t) => t.name));
+  tray.setContextMenu(Menu.buildFromTemplate(buildTrayTemplate({
+    cfg, getCfg: () => cfg, species: sp, coatNames,
+    speciesList: SPECIES_IDS.map((id) => ({ id, emoji: SPECIES[id].emoji, label: SPECIES[id].label })),
+    recent: notifyHistory.recent(10), relTime,
+    onBattery, lowPowerOn: effectiveLowPower(), toolItems: tools.trayItems(),
+  }, {
+    persist: persistAndBroadcast, openSettings, triggerBreak, giveTreat, snooze: snoozeLast, sendMood, startSetArea, sendAction,
+    renotify: (n) => notify(n.message, { source: 'recap', recap: true, dedupeMs: 0, os: false }),
+    clearRecent: () => notifyHistory.clear(),
+    openReport: () => reportWin && reportWin.open(),
+    quit: () => app.quit(),
+  })));
 }
 
 // ---- settings window -------------------------------------------------------
@@ -702,42 +631,11 @@ const notifyRecent = new Map();   // dedupeKey -> last fire ms (drops rapid repe
 const soundRecent = new Map();    // 'snd:'+source -> last audible ms
 const SOUND_FLOOR_MS = 15000;
 
-// Rolling history of the cat's own notifications, so the user can recap what they
-// missed (tray "Recent notifications"). Persisted so it survives a restart.
-const NOTIFY_HISTORY_MAX = 50;
-let notifyHistory = [];
-let historySaveTimer = null;
-function notifyHistoryPath() { return path.join(app.getPath('userData'), 'notify-history.json'); }
-function loadNotifyHistory() {
-  try { const a = JSON.parse(fs.readFileSync(notifyHistoryPath(), 'utf8')); if (Array.isArray(a)) notifyHistory = a.slice(-NOTIFY_HISTORY_MAX); }
-  catch (e) { notifyHistory = []; }
-}
-// Written the same tmp-then-rename way as settings.json (config.js) and
-// themes.json (themes.js), so a crash mid-write cannot leave a truncated file
-// behind. The loader already resets to [] on a parse failure, so the blast
-// radius was only a lost recap - but the rest of the codebase writes atomically
-// and this was the one file that did not.
-function writeNotifyHistory() {
-  const fp = notifyHistoryPath();
-  try {
-    const tmp = `${fp}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(notifyHistory.slice(-NOTIFY_HISTORY_MAX)));
-    fs.renameSync(tmp, fp);
-  } catch (e) { /* best effort */ }
-}
-function saveNotifyHistorySoon() {   // debounced: avoid a disk write per alert
-  if (historySaveTimer) return;
-  historySaveTimer = setTimeout(() => {
-    historySaveTimer = null;
-    writeNotifyHistory();
-  }, 1500);
-}
-function recordNotify(source, message) {
-  notifyHistory.push({ ts: Date.now(), source: source || '', message });
-  if (notifyHistory.length > NOTIFY_HISTORY_MAX) notifyHistory = notifyHistory.slice(-NOTIFY_HISTORY_MAX);
-  saveNotifyHistorySoon();
-  rebuildTrayMenu();   // refresh the "Recent notifications" submenu
-}
+// What the pet said recently, for the tray recap (src/main/notify-history.js).
+const notifyHistory = makeNotifyHistory({
+  filePath: () => path.join(app.getPath('userData'), 'notify-history.json'),
+  onChange: () => rebuildTrayMenu(),
+});
 // One-time first-run hints.
 //
 // Nothing in the running app tells a new user that double-clicking opens Settings,
@@ -760,14 +658,6 @@ function showFirstRunTips() {
   const key = process.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
   say(6000, `Double-click me for settings. Right-click me, or press ${key}, for quick tools.`);
   say(18000, 'Scroll any page and watch me climb.');
-}
-
-function relTime(ts) {
-  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (s < 60) return s + 's ago';
-  const m = Math.round(s / 60); if (m < 60) return m + 'm ago';
-  const h = Math.round(m / 60); if (h < 24) return h + 'h ago';
-  return Math.round(h / 24) + 'd ago';
 }
 
 // ---- Focus Guard ------------------------------------------------------------
@@ -831,7 +721,7 @@ function notify(message, opts) {
   if (now - (notifyRecent.get(key) || 0) < (opts.dedupeMs == null ? 4000 : opts.dedupeMs)) return;
   notifyRecent.set(key, now);
   if (notifyRecent.size > 200) { for (const k of notifyRecent.keys()) { notifyRecent.delete(k); if (notifyRecent.size <= 100) break; } }
-  if (!opts.recap) recordNotify(opts.source, msg);   // log it (but not when re-showing from the recap)
+  if (!opts.recap) notifyHistory.record(opts.source, msg);   // log it (but not when re-showing from the recap)
 
   // Focus Guard: while you are busy, anything that can wait DOES wait - no bubble,
   // no sound, no toast - and is delivered as one summary the moment you are free
@@ -926,10 +816,7 @@ function cleanup() {
   if (agentTimer) clearInterval(agentTimer);
   if (scheduleTimer) clearInterval(scheduleTimer);
   if (pomoTimer) clearTimeout(pomoTimer);
-  if (historySaveTimer) {   // flush any pending history write now, then cancel the debounce so it can't fire mid-teardown
-    clearTimeout(historySaveTimer); historySaveTimer = null;
-    writeNotifyHistory();
-  }
+  notifyHistory.flush();   // write any pending history now so it can't fire mid-teardown
   if (agentWatcher) { try { agentWatcher.close(); } catch (e) { /* ignore */ } }
   if (hookStarted) { try { require('uiohook-napi').uIOhook.stop(); } catch (e) { /* ignore */ } }
   try { mail.stop(); } catch (e) { /* ignore */ }
@@ -1106,7 +993,7 @@ app.whenReady().then(() => {
     else if (!autostartAsked()) { setAutostart(true); markAutostartAsked(); }
     if (process.argv.includes('--autostart=off')) { console.log('[autostart disabled]'); return app.quit(); }
     cfg = config.load();
-    loadNotifyHistory();   // restore the recent-notifications recap from last session
+    notifyHistory.load();   // restore the recent-notifications recap from last session
   }
   createWindow();
   if (!SHOT && !SHEET) {
