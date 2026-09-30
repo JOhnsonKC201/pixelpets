@@ -1,68 +1,36 @@
 <div align="center">
 
-<img src="assets/logo-mark.png" alt="pixelpets logo" width="112" />
+<img src="assets/logo-mark.png" alt="pixelpets logo" width="96" />
 
 # pixelpets
 
-### A pixel cat or dog that lives on your desktop.
+A pixel cat (or dog) that lives on your desktop.
 
-It sits in the corner, watches your cursor, kneads the keyboard when you type,
-purrs when you pet it, and stretches like mochi when you drag it. Prefer a dog?
-Switch species from the tray for a Black Lab that play-bows, pants, and fetches a
-tennis ball. Nearly every sprite and animation is generated in code, and the sound
-is synthesized live: there are no audio files at all.
-
-<br />
-
-[![stars](https://img.shields.io/github/stars/JOhnsonKC201/pixelpets?style=flat-square&labelColor=15161d&color=E8930C)](https://github.com/JOhnsonKC201/pixelpets/stargazers)
-&nbsp;[![CI](https://img.shields.io/github/actions/workflow/status/JOhnsonKC201/pixelpets/ci.yml?style=flat-square&labelColor=15161d&label=CI)](https://github.com/JOhnsonKC201/pixelpets/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/JOhnsonKC201/pixelpets/ci.yml?style=flat-square&labelColor=15161d&label=CI)](https://github.com/JOhnsonKC201/pixelpets/actions/workflows/ci.yml)
 &nbsp;[![release](https://img.shields.io/github/v/release/JOhnsonKC201/pixelpets?style=flat-square&labelColor=15161d&color=E8930C)](https://github.com/JOhnsonKC201/pixelpets/releases/latest)
-&nbsp;![platform](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20(beta)-4C566A?style=flat-square&labelColor=15161d)
 &nbsp;[![license](https://img.shields.io/github/license/JOhnsonKC201/pixelpets?style=flat-square&labelColor=15161d&color=22C55E)](LICENSE)
 
-<br />
+<img src="assets/hero-banner.gif" alt="a tuxedo cat on the desktop watches the cursor, kneads the keyboard while you type, and purrs when you pet it" width="880" />
 
-<img src="assets/hero-banner.gif" alt="pixelpets on your desktop: a tuxedo cat sits and watches your cursor, kneads the keyboard when you type, and purrs when you pet it" width="880" />
+<sub>This is rendered from the app's own sprite code, not a screen recording (<a href="assets/hero-banner.mp4">MP4</a>). The coat is Tuxedo.</sub>
 
-<sub>Every frame is rendered from the same sprite the app draws with, not screen-captured. <a href="assets/hero-banner.mp4">MP4 version</a>.<br />
-The cat shown here is the <b>Tuxedo</b> coat; a new install opens on Mackerel Tabby, and Shift+right-clicking your pet cycles all 14.</sub>
-
-<br />
-
-[![Download for Windows](https://img.shields.io/badge/Download_for_Windows-E8930C?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/JOhnsonKC201/pixelpets/releases/latest)
-&nbsp;
-[![Play in your browser](https://img.shields.io/badge/Play_in_your_browser-15161d?style=for-the-badge)](https://pixelcat-jet.vercel.app)
-
-<sub>The browser demo runs the real renderer: pet it, type at it, scroll to see it react, and wait for the butterfly.</sub>
-
-<br />
-
-<sub>
-  <a href="#install">Install</a>&nbsp;·
-    <a href="#see-it-in-action">In action</a>&nbsp;·
-    <a href="#what-it-does">What it does</a>&nbsp;·
-    <a href="#controls">Controls</a>&nbsp;·
-    <a href="#ai-agent-reactions">AI agents</a>&nbsp;·
-    <a href="#privacy">Privacy</a>&nbsp;·
-    <a href="#documentation">Docs</a>
-</sub>
+**[Download for Windows](https://github.com/JOhnsonKC201/pixelpets/releases/latest)** &nbsp;·&nbsp; [macOS beta](https://github.com/JOhnsonKC201/pixelpets/releases/latest) &nbsp;·&nbsp; [Try it in your browser](https://pixelcat-jet.vercel.app)
 
 </div>
 
----
+It sits in the corner of your screen and keeps you company. It watches your cursor, kneads the keyboard while you type, purrs when you pet it, and stretches like mochi if you drag it around. If you'd rather have a dog, there's a Black Lab that play-bows, pants and fetches a tennis ball.
+
+Almost everything is drawn in code at runtime. The only painted frames are the rope climb on four of the coats. There are no sound files either: the meows, barks and purrs are synthesized as they play.
+
+The [browser demo](https://pixelcat-jet.vercel.app) runs the same renderer as the app, so it's a decent way to see if you like it before installing anything.
 
 ## Install
 
-| | |
-|---|---|
-| **Windows** | 10 or 11. Download the installer below. |
-| **macOS** | 12 or newer, **beta**: the port is code-complete and the builds are ad-hoc signed, but nobody has run one on real Apple hardware yet. |
-| **Linux** | Not supported. Electron would run, but the overlay and the global input hooks are Windows/macOS only. |
-| **From source** | Any of the above, plus git and Node 20 or newer. |
+**Windows 10 or 11:** grab the installer from the [latest release](https://github.com/JOhnsonKC201/pixelpets/releases/latest) and run it. It uninstalls from Settings > Apps like anything else.
 
-[![Download the Windows installer](https://img.shields.io/badge/Download_the_Windows_installer-E8930C?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/JOhnsonKC201/pixelpets/releases/latest)
+**macOS 12 or newer:** the release has builds for Apple Silicon and Intel. Treat these as a beta. The port is finished, but I haven't been able to run it on a real Mac yet, so if you try it, [an issue](https://github.com/JOhnsonKC201/pixelpets/issues) with what you saw would help a lot.
 
-Or run it from source, on any supported platform:
+**From source** (either platform, Node 20+):
 
 ```bash
 git clone https://github.com/JOhnsonKC201/pixelpets.git
@@ -71,227 +39,144 @@ npm install
 npm start
 ```
 
-Either way your pet appears in the corner and registers itself to start at login.
-`npm run autostart:off` turns that off, and the installed version uninstalls from
-Windows Settings > Apps like any other program.
+The pet sets itself to start when you log in. `npm run autostart:off` undoes that. Linux isn't supported, because the overlay and the global input hooks only exist for Windows and macOS.
 
 <details>
-<summary><b>Your OS will warn you the first time, and that is expected.</b></summary>
+<summary>About the security warning on first launch</summary>
 
 <br />
 
-The builds are not code-signed, because a certificate costs real money for a free
-app.
+The builds aren't code-signed (a signing certificate costs money, and this is a free side project), so your OS will be suspicious the first time.
 
-- **Windows:** SmartScreen shows a blue *"Windows protected your PC"* screen.
-  Click **More info**, then **Run anyway**.
-- **macOS:** Gatekeeper refuses a double-click. Try to open it once, then go to
-  **System Settings > Privacy & Security** and click **Open Anyway**. (On macOS 14
-  and earlier, right-clicking the app and choosing **Open** also works; macOS 15
-  removed that shortcut.)
+- Windows shows a blue "Windows protected your PC" screen. Click **More info**, then **Run anyway**.
+- macOS won't open it on a double-click. Try once, then go to System Settings > Privacy & Security and click **Open Anyway**. On macOS 14 and older you can also right-click the app and choose Open. macOS 15 took that shortcut away.
 
-Would rather not? The [browser demo](https://pixelcat-jet.vercel.app) is the real
-renderer with nothing to install, and running from source skips the installer
-entirely.
+If that makes you uneasy, the browser demo needs no install, and building from source skips the installer entirely. The [Privacy](#privacy) section and [SECURITY.md](SECURITY.md) spell out what the app does on your machine. The short version: the keyboard hook only reports that a key was pressed, never which one.
 
-What the app does on your machine is documented in [Privacy](#privacy) and
-[SECURITY.md](SECURITY.md): the keyboard hook forwards a single "a key was
-pressed" boolean and never what you typed.
+Running from source has two small platform quirks (a silent launcher on Windows, the Accessibility permission on macOS), covered in the [development guide](docs/development.md).
 
 </details>
 
-Running from source has two platform notes, a silent Windows launcher and the
-macOS Accessibility grant, both covered in the
-[development guide](docs/development.md).
-
-## See it in action
+## What it does
 
 <table align="center">
 <tr>
-<td align="center"><img src="assets/gallery/climb.gif" width="240" alt="a tuxedo cat climbs a yarn rope when you scroll" /><br /><sub><b>Reacts when you scroll</b></sub></td>
-<td align="center"><img src="assets/gallery/butterfly.gif" width="240" alt="a tuxedo cat tracks and plays with a butterfly" /><br /><sub><b>Plays with a butterfly</b></sub></td>
-<td align="center"><img src="assets/gallery/mochi.gif" width="240" alt="a tuxedo cat stretches like mochi when you drag it" /><br /><sub><b>Stretches like mochi</b></sub></td>
+<td align="center"><img src="assets/gallery/type.gif" width="190" alt="a tuxedo cat kneads the keyboard while you type" /><br /><sub>typing</sub></td>
+<td align="center"><img src="assets/gallery/pet.gif" width="190" alt="a tuxedo cat purrs with hearts when petted" /><br /><sub>petting</sub></td>
+<td align="center"><img src="assets/gallery/climb.gif" width="190" alt="a tuxedo cat climbs a yarn rope when you scroll" /><br /><sub>scrolling</sub></td>
+<td align="center"><img src="assets/gallery/mochi.gif" width="190" alt="a tuxedo cat stretches like mochi when you drag it" /><br /><sub>dragging</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="assets/gallery/eat.gif" width="240" alt="a tuxedo cat noms a fish treat with hearts" /><br /><sub><b>Noms a treat</b></sub></td>
-<td align="center"><img src="assets/gallery/sing.gif" width="240" alt="a tuxedo cat sings, with floating music notes" /><br /><sub><b>Sings and meows</b></sub></td>
-<td align="center"><img src="assets/gallery/hunt.gif" width="240" alt="a tuxedo cat crouches and pounces to hunt the cursor" /><br /><sub><b>Pounces on the cursor</b></sub></td>
+<td align="center"><img src="assets/gallery/butterfly.gif" width="190" alt="a tuxedo cat tracks and plays with a butterfly" /><br /><sub>butterfly</sub></td>
+<td align="center"><img src="assets/gallery/hunt.gif" width="190" alt="a tuxedo cat crouches and pounces to hunt the cursor" /><br /><sub>hunting the cursor</sub></td>
+<td align="center"><img src="assets/gallery/eat.gif" width="190" alt="a tuxedo cat noms a fish treat with hearts" /><br /><sub>a treat</sub></td>
+<td align="center"><img src="assets/gallery/sing.gif" width="190" alt="a tuxedo cat sings, with floating music notes" /><br /><sub>singing</sub></td>
 </tr>
 </table>
 
-<div align="center">
-<sub>Typing and petting are in the banner above. Every pose is composed into the pet's own sprite,
-so all 15 coats and both species get every one of them in their own colours, without shipping a
-single extra image.</sub>
-</div>
+Mostly it just reacts to you. Petting, dragging, typing, scrolling and moving the cursor near it all get their own response, and a small energy model decides whether it's in the mood: it can be sleepy, calm, playful or have full-on zoomies.
 
-## What it does
+It also does a few useful things. There's a break timer and a Pomodoro timer, repeating reminders, a note you can pin above its head, unread-mail alerts over IMAP and nudges before calendar events. All of it comes through the pet as a speech bubble. Focus Guard keeps it quiet while you're actually busy (a calendar event in progress, Quiet Hours, or Work mode). Anything it held back shows up afterwards as one line, like "While you were busy: 3 new emails and 1 reminder."
 
-|  |  |
-|---|---|
-| **It reacts to you** | Petting, dragging, typing, scrolling, and cursor play each get their own response, gated by an internal mood model that runs from calm up to zoomies and back. |
-| **15 coats, one shape** | 14 cat coats and a Black Lab, all recolored at draw time from one role-coded sprite. Design, import, and export your own. |
-| **No spare frames** | Every animation is composed into that sprite, limbs included, so every coat and both species get every pose in their own colours. |
-| **Zero audio files** | The meow, the bark, the purr, the pant, and an endlessly improvising lo-fi jam are all synthesized live with Web Audio. |
-| **It keeps you on track** | Break and Pomodoro timers, repeating reminders, a pinned note, IMAP unread-mail alerts, and calendar nudges, all delivered by your pet. |
-| **It knows when to shut up** | Focus Guard reads "busy" from a live calendar event, Quiet Hours, or Work mode, parks the pet, and holds messages back rather than meowing into your screen-share. Nothing is dropped; you get one summary line when you are free. |
-| **It watches your agent** | It knows when your coding agent is thinking, working, or done, and reacts with its paws. Hook configs ship for five agents. |
-| **It stays out of the way** | A transparent, click-through overlay that sits above every window. Only your pet is clickable. |
+If you use a coding agent, it can follow along. See [AI agent reactions](#ai-agent-reactions) below.
 
-<div align="center">
+There are 14 cat coats and a Black Lab, and you can design your own. Every coat is the same sprite recoloured when it's drawn, which is why they all get every pose:
 
-<img src="assets/showcase.png" alt="all 14 cat coats across the sit, typing, hunt, and loaf poses" width="100%" />
+<p align="center"><img src="assets/showcase.png" alt="all 14 cat coats across the sit, typing, hunt, and loaf poses" width="100%" /></p>
 
-<sub><b>Fourteen cat coats, one shape.</b> Every pose in every coat, recolored from a single role-coded sprite at draw time.<br />
-Prefer to watch them cycle? <a href="assets/coat-carousel.gif">Here they are, one at a time</a>.</sub>
+<p align="center"><sub><a href="assets/coat-carousel.gif">Or watch them cycle one at a time.</a></sub></p>
 
-</div>
+The dog isn't a recoloured cat. It has its own sprite with a proper muzzle, floppy ears and an otter tail. Where the cat crouches to hunt it play-bows, where the cat grooms it pants, and instead of a fish it gets a ball that it actually chases and brings back. Switch between them under Pet in the tray; each remembers its own coat. The [feature guide](docs/features.md#cat-or-dog) has the rest.
 
-### Cat or dog
-
-Pick your species from the tray (**Pet > Cat / Dog**); each keeps its own coat.
-The dog is not a recoloured cat: it has its own sprite module, a muzzle that
-protrudes past the skull line, floppy ears, a broader chest, and a straight otter
-tail. Where the cat does a hunting crouch it does a play bow, where the cat grooms
-it pants, and where the cat gets a fish it gets a tennis ball it will actually
-chase down and bring back.
-
-[The full comparison, and every interaction, is in the feature guide.](docs/features.md#cat-or-dog)
+The pet lives on a transparent overlay above your windows that clicks through everywhere except the pet itself, so it doesn't get in your way.
 
 ## Controls
 
-| Action | What it does |
-|--------|--------------|
-| **Drag** your pet (hold left) | Stretches it like mochi; it settles onto the bottom line where you release, and that spot becomes its new home |
-| **Right-click** it | Opens Quick Tools (Shift+right-click cycles the coat) |
-| **Ctrl+Shift+Space** (Cmd+Shift+Space on a Mac) | Opens Quick Tools from any app |
-| **Tap** it | A quick pet: happy eyes, hearts, a chirp |
-| **Rest cursor on its head** | Happy eyes, floating hearts, and a purr |
-| **Rest cursor on its body** | Leans and arches into your hand, tail up, trilling |
-| **Type** (any app) | Front-paw kneading; fast typing overheats it |
-| **Scroll** (any app) | Rears up and swipes at a blowing leaf, or climbs a yarn rope on the four coats that ship painted climb art |
-| **Double-click** it | Opens Settings (name, timers, reminders, coat) |
-| **Tray icon** | Settings, Start break now, Quick tools, Keep screen awake, Lock screen, running timers, Clipboard history and Eye-rest toggles, coat picker, play area, sound and hunt and mood toggles, Report a problem, Quit |
+| | |
+|---|---|
+| Drag it | It stretches like mochi, and wherever you drop it becomes its new home spot |
+| Right-click it | Quick Tools (Shift+right-click for the next coat) |
+| Ctrl+Shift+Space (Cmd+Shift+Space on a Mac) | Quick Tools from any app |
+| Tap it | A quick pet (happy eyes, hearts, a chirp) |
+| Hover over its head | Happy eyes, floating hearts and a purr |
+| Hover over its body | It leans into your hand with its tail up |
+| Type in any app | It kneads; type fast enough and it overheats |
+| Scroll in any app | It swipes at a leaf, or climbs a rope on the four coats with painted climb art |
+| Double-click it | Settings |
+| Tray icon | Settings, Start break now, Quick Tools, Keep screen awake, Lock screen, running timers, the Clipboard history and Eye-rest switches, coat picker, play area, sound, hunt and mood toggles, Report a problem, Quit |
 
 ### Quick Tools
 
-One box for the small things you do all day. Type, press Enter:
+One box for the small things you do all day. Type something and press Enter:
 
 | Type | What happens |
 |------|--------------|
-| part of a pinned name, e.g. `mail.google`, `projects` | Opens a site, folder or app you pinned in Settings > Tools |
+| part of a pinned name, like `mail.google` or `projects` | Opens a site, folder or app you pinned in Settings > Tools |
 | `=12*7.5`, `5 km in mi`, `72 f to c` | Calculates or converts; Enter copies the answer |
 | `g how to center a div` | Searches the web (`ddg` and `b` work too) |
 | `note call the bank` | Adds a timestamped line to your notes file |
 | `todo email the lab`, `done 1` | Today's to-dos, five at most; the pet cheers when you tick one off |
-| `10m tea`, `1h30m` | A timer the pet announces when it is up |
+| `10m tea`, `1h30m` | A timer the pet announces when it's up |
 | `snip`, `lock`, `awake` | Screen snip, lock the screen, keep the screen awake |
 
-Clipboard history (last 20 copies, memory only, skips passwords and keys) and
-20-20-20 eye-rest nudges are opt-in switches in Settings > Tools, next to the low
-battery alert, which is on by default.
-[Everything Quick Tools does.](docs/features.md#quick-tools)
+Clipboard history (the last 20 copies, kept in memory only, skipping passwords and keys) and 20-20-20 eye-rest nudges are opt-in switches in Settings > Tools. The low battery alert next to them is on by default. [Everything Quick Tools does.](docs/features.md#quick-tools)
 
-Settings persist to `settings.json` in your per-user app-data folder
-(`%APPDATA%/pixelpets/` on Windows, `~/Library/Application Support/pixelpets/` on
-macOS). An install that predates the rename is migrated across on first launch.
-Timers and reminders only fire while pixelpets is running, and reminder times use
-your local clock.
+Settings are saved to `settings.json` in your app-data folder (`%APPDATA%/pixelpets/` on Windows, `~/Library/Application Support/pixelpets/` on macOS). If you had the older pixelcat version, your settings move over on first launch. Timers and reminders only fire while the app is running.
 
 ## AI agent reactions
 
-Your pet reacts to a coding agent's work status, and it uses its paws to do it. It
-raises a paw to its chin to ponder while an agent like Claude Code, Codex, or
-Cursor thinks, taps a paw along with a spinner while it works, and does a happy
-hop and meow when it finishes. Any tool can signal it by running the bundled
-helper, which writes a tiny status file the pet watches
-(`%TEMP%/pixelcat-agent.state`):
+The pet can react to what your coding agent is doing. It puts a paw to its chin while Claude Code, Codex or Cursor is thinking, taps along while it works, and does a little hop when it's done. The bundled helper writes a status file that the pet watches (`%TEMP%/pixelcat-agent.state`), so any tool can drive it:
 
 ```bash
-node agent-hook.js thinking   # ponders, paw to chin + "…" bubble
-node agent-hook.js editing    # taps a paw + "working" spinner
-node agent-hook.js error      # startles (flinch)
-node agent-hook.js done       # happy hop + meow
+node agent-hook.js thinking   # paw to chin, "…" bubble
+node agent-hook.js editing    # tapping, "working" spinner
+node agent-hook.js error      # flinches
+node agent-hook.js done       # hop and meow
 node agent-hook.js idle       # back to normal
 ```
 
-Ready-to-use configs for **Claude Code, Codex CLI, Cursor, Antigravity and Kiro**
-live in [`integrations/`](integrations/), and `npm run hook -- <agent>` prints
-yours with the absolute path already filled in. The helper is hook-safe: it
-drains stdin and replies `{"continue": true}`, so it never blocks or alters your
-agent.
+[`integrations/`](integrations/) has ready configs for Claude Code, Codex CLI, Cursor, Antigravity and Kiro, and `npm run hook -- <agent>` prints yours with the right path filled in. The helper reads stdin and answers `{"continue": true}`, so it can't block or change your agent.
 
-<sub>The richer status reactions were inspired by the open-source AI desktop pets
-<a href="https://github.com/alvinunreal/openpets">openpets</a> (MIT) and
-<a href="https://github.com/rullerzhou-afk/clawd-on-desk">clawd-on-desk</a> (AGPL-3.0).
-Ideas only; all code here is original to pixelpets.</sub>
+<sub>The richer agent reactions borrow ideas from two other open-source desktop pets, <a href="https://github.com/alvinunreal/openpets">openpets</a> (MIT) and <a href="https://github.com/rullerzhou-afk/clawd-on-desk">clawd-on-desk</a> (AGPL-3.0). No code was taken from either.</sub>
 
 ## Privacy
 
-Your pet reacts to your typing and scrolling, which means it listens to global
-input events, so here is the plain statement: input is used only to trigger
-animations, in the moment, on your machine. Keystrokes are never logged, stored,
-or sent anywhere. There is no telemetry and no auto-update. The app makes no
-network connections at all unless you set up the optional mail or calendar
-alerts, and those talk only to the servers you point them at, from isolated
-worker processes. Your IMAP app password is stored encrypted at rest (Electron
-`safeStorage`) and never written to `settings.json`.
+Because the pet reacts to typing and scrolling, it listens to global input events, and that deserves a straight answer. Input is only used to trigger an animation, right then, on your machine. Keystrokes are never logged, saved or sent anywhere, and the pet itself is only told that a key was pressed, not which one.
 
-pixelpets keeps a small diagnostic log on your machine (`logs/pixelpets.log` in
-the app-data folder, three files of at most 1 MB). Emails, links, tokens and your
-user name inside file paths are removed before a line is written. It is never uploaded: **Report a
-problem** (tray, or Settings > Tools) shows you the exact text first, and only
-your browser, opening GitHub's issue form when you click, ever carries it.
+There's no telemetry and no auto-update. The app doesn't touch the network at all unless you turn on the mail or calendar alerts, and those only talk to the servers you give them, from separate worker processes. Your mail app password is encrypted with Electron's `safeStorage` and never written to `settings.json`.
+
+pixelpets keeps a small diagnostic log on your machine (`logs/pixelpets.log` in the app-data folder, three files of at most 1 MB). Emails, links, tokens and your user name inside file paths are removed before a line is written. It's never uploaded: **Report a problem** (tray, or Settings > Tools) shows you the exact text first, and only your browser ever carries it, when you click through to GitHub's issue form.
 
 ## Documentation
 
-| Guide | What is in it |
-|---|---|
-| [Features](docs/features.md) | Every interaction, coat, mood, sound, and productivity feature |
-| [Custom coats](docs/custom-coats.md) | Designing, hand-editing, and sharing your own coat |
-| [How it works](docs/architecture.md) | One sprite covering 15 coats, and the project layout |
-| [Development](docs/development.md) | Running from source, building installers, visual QA |
-| [Frame pack](docs/frame-pack.md) | Painting a pose by hand and importing it |
-| [Agent hooks](integrations/) | Wiring the pet to Claude Code, Codex, Cursor, Antigravity, Kiro |
-| [iPad terminal](tools/ipad-terminal/) | A real terminal for *this* machine, driven from an iPad |
+- [Features](docs/features.md): every interaction, coat, mood, sound and productivity feature
+- [Custom coats](docs/custom-coats.md): making, hand-editing and sharing your own
+- [How it works](docs/architecture.md): how one sprite covers 15 coats, and the project layout
+- [Development](docs/development.md): running from source, building installers, visual QA
+- [Frame pack](docs/frame-pack.md): painting a pose by hand and importing it
+- [Agent hooks](integrations/): wiring it up to Claude Code, Codex, Cursor, Antigravity and Kiro
+- [iPad terminal](tools/ipad-terminal/): a terminal for this machine that you drive from an iPad
 
 ## Development
 
 ```bash
 npm start          # run the app
-npm test           # the full suite: no Electron and no GPU required
-npm run lint       # what CI runs, alongside the tests and a real boot check
-npm run poses:cat  # contact sheet: every activity x every coat, for visual QA
-npm run demo:all   # regenerate the README's hero, gallery, and coat carousel
+npm test           # the test suite (no Electron window or GPU needed)
+npm run lint       # what CI runs, along with the tests and a real boot check
+npm run poses:cat  # contact sheet of every activity in every coat, for eyeballing changes
+npm run demo:all   # rebuild the GIFs in this README
 ```
 
-The overlay is GPU-composited, so ordinary screenshots cannot capture it. Visual
-changes are reviewed with those contact sheets instead. The full command list,
-build instructions, and the macOS beta checklist are in the
-[development guide](docs/development.md).
+The overlay is GPU-composited, which means normal screenshots can't capture it. Visual changes get checked with the contact sheets instead. More commands, build steps and the macOS beta checklist are in the [development guide](docs/development.md).
 
 ## Contributing
 
-Bug reports, ideas, and PRs are all welcome. Start with the
-[contributing guide](CONTRIBUTING.md); the [security policy](SECURITY.md) covers
-reporting a vulnerability privately.
+Bug reports, ideas and PRs are welcome. The [contributing guide](CONTRIBUTING.md) has the details, and [SECURITY.md](SECURITY.md) explains how to report a vulnerability privately.
 
-If you own a Mac, running the
-[beta checklist](docs/development.md#macos-beta-checklist) and opening an issue
-with whatever you see is the single most useful contribution right now.
+If you have a Mac, the most useful thing you could do right now is run through the [beta checklist](docs/development.md#macos-beta-checklist) and open an issue with whatever happens, good or bad.
 
-Custom coats and desk setups belong in
-[Discussions](https://github.com/JOhnsonKC201/pixelpets/discussions), and release
-history lives in the [changelog](CHANGELOG.md).
+Custom coats and desk setups are very welcome in [Discussions](https://github.com/JOhnsonKC201/pixelpets/discussions). Release notes are in the [changelog](CHANGELOG.md).
 
 ---
 
-<div align="center">
-
-Made for fun. All art, code, and sound are original; the meow and purr are
-synthesized in code, with no audio files. pixelpets is inspired by, not copied
-from, Comnyang: no Comnyang assets, sprites, audio, or branding are used.
-
-[**MIT**](LICENSE) © [JOhnsonKC201](https://github.com/JOhnsonKC201)
-
-</div>
+<sub>All art, code and sound here are original. pixelpets was inspired by Comnyang, but doesn't use any of its assets, sprites, audio or branding. [MIT](LICENSE) © [JOhnsonKC201](https://github.com/JOhnsonKC201)</sub>
