@@ -17,6 +17,7 @@ const { wireMacEditKeys } = require('./mac-edit-keys');
 const themes = require('./themes');
 const { PATTERN_NAMES } = require('./patterns');
 const { SPECIES, SPECIES_IDS, speciesOf, coatsFor, defaultCoatIndex } = require('./pets');
+const { parseCli, SHOT_CANVAS } = require('./main/cli');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -87,51 +88,11 @@ function trippedOnce() {
   } catch (e) { /* the notifier itself may be what broke */ }
 }
 
-// Optional `--state=` / `--pattern=` force a pose/coat for --shot previews.
-const stateArg = (process.argv.find((a) => a.startsWith('--state=')) || '').split('=')[1] || '';
-const patternArg = (process.argv.find((a) => a.startsWith('--pattern=')) || '').split('=')[1] || '';
-const dirArg = (process.argv.find((a) => a.startsWith('--dir=')) || '').split('=')[1] || '';   // force climb direction (up|down) for --shot previews
-const speciesArg = (process.argv.find((a) => a.startsWith('--species=')) || '').split('=')[1] || '';   // force cat|dog for --shot previews (the renderer already reads ?species=)
-// `--note=<text>` pins a speech bubble open for a --shot capture, so bubble wrapping
-// and edge clamping can be eyeballed against a real font instead of only unit-tested.
-const noteArg = (process.argv.find((a) => a.startsWith('--note=')) || '').split('=').slice(1).join('=') || '';
-const SHOT = process.argv.includes('--shot');
-const SHEET = process.argv.includes('--sheet');   // contact-sheet QA capture
-const REEL = process.argv.includes('--reel');     // marketing reel: a run of frames of one forced pose
-// The preview canvas the overlay sizes itself to in SHOT mode. Kept here so the
-// preview WINDOW can be built to cover it; the two must not drift (see createWindow).
-const SHOT_CANVAS = { w: 260, h: 320 };
-// `--at=<ms>` sets how long to let the scene animate before the --shot capture, so
-// animated poses (typing kneads, paper batting) can be QA'd at any phase.
-const shotAtMs = Math.max(0, Number((process.argv.find((a) => a.startsWith('--at=')) || '').split('=')[1]) || 700);
+// Preview and capture flags (--shot, --sheet, --reel and their knobs). A normal
+// launch passes none of them; see src/main/cli.js.
+const cli = parseCli(process.argv);
+const { stateArg, patternArg, dirArg, speciesArg, noteArg, SHOT, SHEET, REEL, shotAtMs, reel } = cli;
 
-// `--reel` records a run of frames of ONE forced pose straight to PNGs, so
-// scripts/make-reel.js can string the poses together into a demo video. Every knob
-// is a flag because framing (how big the pet is, where it sits on the wallpaper) is
-// judged by eye against a real backdrop, not derived.
-const reelNum = (name, dflt) => {
-  const v = Number((process.argv.find((a) => a.startsWith(`--${name}=`)) || '').split('=')[1]);
-  return Number.isFinite(v) ? v : dflt;
-};
-const reelStr = (name) => (process.argv.find((a) => a.startsWith(`--${name}=`)) || '').split('=').slice(1).join('=') || '';
-const reel = {
-  out: reelStr('out'),                  // directory the PNG frames land in
-  bg: reelStr('bg'),                    // desktop backdrop jpeg, already sized to w x h
-  w: reelNum('w', 1920), h: reelNum('h', 1080),
-  scale: reelNum('scale', 3),           // CSS upscale of the 260x320 pet canvas
-  left: reelNum('left', 1150), top: reelNum('top', 120),
-  frames: reelNum('frames', 48), fps: reelNum('fps', 20),
-  warmup: reelNum('warmup', 8),         // paints to discard while the pose settles
-  timeout: reelNum('timeout', 60000),
-  drag: process.argv.includes('--drag'),
-  // Render at `every` x fps and keep one paint in `every`. This is not smoothing:
-  // the overlay integrates its springs with `step = min(2.5, dt / 16)`, so at 20 fps
-  // step pins to 2.5 and the head/feet spring gain goes above 1. The sim DIVERGES -
-  // the drag stretch runs away until the cat is a one-pixel vertical line somewhere
-  // off frame. Driving the page at 60 fps puts step back near 1 and the same drag is
-  // stable, so any spring-driven move films at `--every=3`.
-  every: Math.max(1, reelNum('every', 1)),
-};
 // A reel run must not touch the pet the user is actually running. The overlay
 // persists `pos` to localStorage (persistPos, the overlay), localStorage lives in
 // userData, and a capture forces the pet to the preview position - so filming with
@@ -353,7 +314,7 @@ function createWindow() {
     // Small focusable window for previews (no overlay/click-through). The sheet
     // window stays hidden - it exports its canvas via IPC, not a screen capture.
     // The width MUST cover the preview canvas that the overlay's SHOT branch sizes
-    // (SHOT_CANVAS below): it was 20px narrower for a long time, so a --shot capture
+    // (SHOT_CANVAS, src/main/cli.js): it was 20px narrower for a long time, so a --shot capture
     // quietly cropped anything that reached the right-hand side of the canvas and
     // the loss looked like a rendering bug rather than a window that was too small.
     // tests/shot-window.test.js pins the two together.
@@ -388,10 +349,7 @@ function createWindow() {
   if (patternArg) params.push(`pattern=${patternArg}`);
   if (dirArg) params.push(`dir=${dirArg}`);
   if (speciesArg) params.push(`species=${speciesArg}`);
-  // startsWith, not includes: every other preview flag takes a --flag=value form,
-  // so `--treat=1` (the spelling the overlay's own comment documents) was silently
-  // ignored here and the QA shot came back with no fish. Both spellings work now.
-  const hasFlag = (name) => process.argv.some((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+  const { hasFlag } = cli;   // --treat and --treat=1 both count (see src/main/cli.js)
   if (hasFlag('bfly')) params.push('bfly=1');    // force the butterfly visitor (QA shots)
   if (hasFlag('treat')) params.push('treat=1');  // force a dropped treat (QA shots)
   if (hasFlag('ball')) params.push('ball=1');    // force a resting fetch ball (QA shots, dogs)
