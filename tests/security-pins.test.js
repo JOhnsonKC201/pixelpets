@@ -69,8 +69,11 @@ test('release builds cannot be run as plain Node or debugged from the command li
   assert.strictEqual(fuses.enableNodeCliInspectArguments, false);
   assert.strictEqual(fuses.onlyLoadAppFromAsar, true);
   assert.strictEqual(fuses.enableEmbeddedAsarIntegrityValidation, true);
-  // Every page is loaded with loadFile and reads nothing else over file://.
-  assert.strictEqual(fuses.grantFileProtocolExtraPrivileges, false);
+  // Must stay ON while pages load with loadFile: with it off, file:// cannot read
+  // inside app.asar and the packaged overlay fails with ERR_FILE_NOT_FOUND (the
+  // packaged-boot CI job showed this on Windows and macOS). Turning it off needs
+  // a custom protocol for the app's own pages first.
+  assert.strictEqual(fuses.grantFileProtocolExtraPrivileges, true);
 });
 
 test('nothing relies on running the app binary as Node', () => {

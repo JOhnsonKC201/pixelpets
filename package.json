@@ -68,7 +68,7 @@
       "onlyLoadAppFromAsar": true,
       "enableEmbeddedAsarIntegrityValidation": true,
       "loadBrowserProcessSpecificV8Snapshot": false,
-      "grantFileProtocolExtraPrivileges": false,
+      "grantFileProtocolExtraPrivileges": true,
       "resetAdHocDarwinSignature": true
     },
     "directories": {
