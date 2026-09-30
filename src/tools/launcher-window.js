@@ -8,21 +8,24 @@
 const { BrowserWindow, screen, app } = require('electron');
 const path = require('path');
 
-const WIDTH = 560;
-const MIN_H = 64;
-const MAX_H = 480;
+const { glassFor, materialOptions } = require('./glass');
+
+const WIDTH = 600;
+const MIN_H = 66;
+const MAX_H = 560;
 const GAP = 12;   // space between the pet and the launcher when anchored to it
 
 function makeLauncher({ hardenNav, wireMacEditKeys }) {
   let win = null;
   let anchoredAbove = false;   // grows upward when it sits above the pet
+  const glass = glassFor();
 
   function create() {
     win = new BrowserWindow({
       width: WIDTH, height: MIN_H, useContentSize: true,
       frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
-      fullscreenable: false, skipTaskbar: true, show: false, alwaysOnTop: true,
-      transparent: false, backgroundColor: '#191b22', hasShadow: true,
+      fullscreenable: false, skipTaskbar: true, show: false, alwaysOnTop: true, hasShadow: true,
+      ...materialOptions(glass),
       title: 'pixelpets quick tools',
       webPreferences: {
         preload: path.join(__dirname, '..', 'launcher-preload.js'),
@@ -61,7 +64,7 @@ function makeLauncher({ hardenNav, wireMacEditKeys }) {
     win.setPosition(Math.round(area.x + (area.width - WIDTH) / 2), Math.round(area.y + area.height * 0.28));
   }
 
-  function show(anchor) {
+  function show(anchor, state = {}) {
     if (!win || win.isDestroyed()) create();
     const reveal = () => {
       if (!win || win.isDestroyed()) return;
@@ -71,7 +74,7 @@ function makeLauncher({ hardenNav, wireMacEditKeys }) {
       // focus() can leave keystrokes going to whatever app was in front.
       if (process.platform === 'darwin') app.focus({ steal: true });
       win.focus();
-      win.webContents.send('launcher:reset');
+      win.webContents.send('launcher:reset', { ...state, glass: !!glass });
     };
     if (win.webContents.isLoading()) win.webContents.once('did-finish-load', reveal);
     else reveal();

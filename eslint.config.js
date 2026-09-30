@@ -35,7 +35,7 @@ const sharedOverlay = {
   drawSparkle: 'readonly', drawGuitar: 'readonly', drawNote: 'readonly',
 };
 
-const CONSUMER_OVERLAY = ['src/renderer.js', 'src/settings-renderer.js', 'src/cat-preview.js'];
+const CONSUMER_OVERLAY = ['src/renderer.js', 'src/settings-renderer.js', 'src/cat-preview.js', 'src/launcher-renderer.js'];
 
 module.exports = [
   // Keep this in step with .gitignore. Without the local-only entries, a working
@@ -55,7 +55,7 @@ module.exports = [
   {
     // Node / CommonJS: main process, workers, scripts, tests, configs, template.js
     files: ['**/*.js'],
-    ignores: [...CONSUMER_OVERLAY, 'src/launcher-renderer.js', 'src/cat-sprite.js', 'src/dog-sprite.js', 'src/patterns.js', 'src/pets.js', 'src/art-frames.js', 'src/audio.js', 'src/effects.js', 'src/jam.js'],
+    ignores: [...CONSUMER_OVERLAY, 'src/launcher-icons.js', 'src/cat-sprite.js', 'src/dog-sprite.js', 'src/patterns.js', 'src/pets.js', 'src/art-frames.js', 'src/audio.js', 'src/effects.js', 'src/jam.js'],
     languageOptions: { sourceType: 'commonjs', ecmaVersion: 2023, globals: { ...globals.node } },
   },
   {
@@ -86,8 +86,8 @@ module.exports = [
     languageOptions: { sourceType: 'commonjs', ecmaVersion: 2023, globals: { ...globals.node, ...globals.browser } },
   },
   {
-    // Quick Tools launcher window: a standalone classic <script> (no shared overlay scope).
-    files: ['src/launcher-renderer.js'],
+    // Quick Tools launcher icons: a standalone classic <script> that sets window.LauncherIcons.
+    files: ['src/launcher-icons.js'],
     languageOptions: { sourceType: 'script', ecmaVersion: 2023, globals: { ...globals.browser } },
   },
   {

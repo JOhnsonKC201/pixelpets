@@ -1257,6 +1257,7 @@ app.whenReady().then(() => {
       inQuiet: () => !!(cfg && inQuietHours(cfg.quietHours, new Date())),
       isSettingsFocused: () => !!(settingsWin && !settingsWin.isDestroyed() && settingsWin.isFocused()),
       getSettingsWin: () => (settingsWin && !settingsWin.isDestroyed() ? settingsWin : null),
+      getThemes: () => themesCache, builtinCoatCount: () => PATTERN_NAMES.length,
     });
     // Auto low-power on battery: track power state and re-derive the flag on change.
     try { onBattery = powerMonitor.isOnBatteryPower(); } catch (e) { onBattery = false; }
