@@ -38,6 +38,9 @@ function parseCli(argv) {
     // `--at=<ms>` sets how long to let the scene animate before the --shot capture,
     // so animated poses (typing kneads, paper batting) can be QA'd at any phase.
     shotAtMs: Math.max(0, Number(valueOf('at')) || 700),
+    // `--soak=<minutes>`: a normal run that reports memory and CPU, then quits
+    // (src/main/soak.js). 0 = off; capped at a day.
+    soakMinutes: Math.min(24 * 60, Math.max(0, Number(valueOf('soak')) || 0)),
     hasFlag,
     // `--reel` records a run of frames of ONE forced pose straight to PNGs, so
     // scripts/make-reel.js can string the poses together into a demo video. Every

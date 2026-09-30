@@ -31,6 +31,7 @@ const { keepOnTop } = require('./main/keep-on-top');
 const { floorGeometry } = require('./main/geometry');
 const { onRendererGone } = require('./main/crash-reload');
 const { installAppGuards } = require('./main/app-guards');
+const { startSoak } = require('./main/soak');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -760,6 +761,7 @@ app.whenReady().then(() => {
   createWindow();
   if (!SHOT && !SHEET) {
     createTray(); startScheduler(); mail.init(notify, () => cfg); mail.sync(cfg); cal.init(notify, () => cfg); cal.sync(cfg);
+    if (cli.soakMinutes) startSoak({ app, minutes: cli.soakMinutes, print: (line) => { log.info(line); if (app.isPackaged) console.log(line); } });
     tools.init({
       notify, getCfg: () => cfg, persist: persistAndBroadcast, sendAction, triggerBreak, openSettings,
       rebuildTray: rebuildTrayMenu, hardenNav, onSecure, handleSecure, getPetAnchor,
