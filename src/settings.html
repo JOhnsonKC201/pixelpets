@@ -50,7 +50,7 @@
     /* section rail - 11 cards in one scroll was a 6x blind scroll with nothing to
        aim at; the rail turns "keep scrolling and hope" into one click. */
     .tabs {
-      display: grid; grid-template-columns: repeat(5, 1fr);
+      display: grid; grid-template-columns: repeat(6, 1fr);
       background: linear-gradient(180deg, #1a1c23, #15171d);
       border-bottom: 2px solid #0f1116; box-shadow: 0 3px 0 rgba(0,0,0,.3);
     }
@@ -162,15 +162,18 @@
     .acts .act:disabled { opacity: .55; cursor: default; transform: none; }
 
     /* lists (reminders / themes) */
-    ul#reminders, #themes { list-style: none; margin: 10px 0 0; padding: 0; }
-    ul#reminders li, #themes li {
+    ul#reminders, #themes, #shortcuts, #todoList { list-style: none; margin: 10px 0 0; padding: 0; }
+    ul#reminders li, #themes li, #shortcuts li, #todoList li {
       display: flex; align-items: center; gap: 9px; background: var(--bg);
       border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; margin-bottom: 6px;
     }
     ul#reminders .t { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 700; }
-    ul#reminders .m, #themes .m { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-    ul#reminders .x, #themes .x { color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 15px; line-height: 1; }
-    ul#reminders .x:hover, #themes .x:hover { color: #ff6b78; }
+    #shortcuts .t { color: var(--accent); font-weight: 700; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #todoList li.done .m { color: var(--faint); text-decoration: line-through; }
+    #todoList input[type=checkbox] { margin: 0; accent-color: var(--accent); }
+    ul#reminders .m, #themes .m, #shortcuts .m, #todoList .m { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+    #shortcuts .x, #todoList .x, ul#reminders .x, #themes .x { color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 15px; line-height: 1; }
+    #shortcuts .x:hover, #todoList .x:hover, ul#reminders .x:hover, #themes .x:hover { color: #ff6b78; }
     .empty { color: var(--faint); font-size: 12px; font-style: italic; }
     #themes .sw { width: 18px; height: 18px; border-radius: 5px; border: 2px solid #000; flex: none; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
 
@@ -211,6 +214,7 @@
       <button class="tab" role="tab" id="tab-sound" aria-controls="panel-sound" aria-selected="false" data-panel="sound"><span class="ic" aria-hidden="true">🔊</span>Sound</button>
       <button class="tab" role="tab" id="tab-focus" aria-controls="panel-focus" aria-selected="false" data-panel="focus"><span class="ic" aria-hidden="true">⏱️</span>Focus</button>
       <button class="tab" role="tab" id="tab-feeds" aria-controls="panel-feeds" aria-selected="false" data-panel="feeds"><span class="ic" aria-hidden="true">📬</span>Feeds</button>
+      <button class="tab" role="tab" id="tab-tools" aria-controls="panel-tools" aria-selected="false" data-panel="tools"><span class="ic" aria-hidden="true">🧰</span>Tools</button>
     </nav>
   </div>
 
@@ -404,6 +408,65 @@
         <div class="row" style="margin-top:12px;">
           <label class="lbl" for="pinnedNote" id="pinnedNoteLabel">Pinned note (leave empty to hide)</label>
           <input type="text" id="pinnedNote" maxlength="80" placeholder="Ship the demo by Friday!" />
+        </div>
+      </section>
+    </section>
+
+    <!-- ============================ TOOLS ============================ -->
+    <section class="panel" id="panel-tools" role="tabpanel" aria-labelledby="tab-tools" hidden>
+      <section class="card">
+        <div class="card-h">quick tools</div>
+        <span class="hint" id="toolsHint">Open, note, time, calculate and search from one box.</span>
+        <div class="row inline" style="margin-top:10px;">
+          <label class="lbl" for="toolsHotkey">Hotkey</label>
+          <select id="toolsHotkey"></select>
+        </div>
+        <label class="check"><input type="checkbox" id="toolsRightClick" /><span class="t">Right-click the pet opens it<span class="sub">Shift+right-click still changes the coat</span></span></label>
+        <div class="row inline" style="margin-top:10px;">
+          <label class="lbl" for="toolsSearch">Search with</label>
+          <select id="toolsSearch">
+            <option value="google">Google</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+            <option value="bing">Bing</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-h">pinned shortcuts</div>
+        <span class="hint">Sites, folders and apps you open every day. Type their name in the launcher.</span>
+        <div class="rem-add" style="margin-top:10px;">
+          <input type="text" id="scTarget" maxlength="1000" placeholder="mail.google.com or C:\Projects" />
+          <button id="scAdd">Pin</button>
+        </div>
+        <div class="acts" style="margin-top:7px;">
+          <button id="scPickFile">Pin a file or app…</button>
+          <button id="scPickFolder">Pin a folder…</button>
+        </div>
+        <span class="hint" id="scMsg" role="status"></span>
+        <ul id="shortcuts"></ul>
+      </section>
+
+      <section class="card">
+        <div class="card-h">today</div>
+        <div class="rem-add">
+          <input type="text" id="todoText" maxlength="80" placeholder="Email the lab, 30 min of reading…" />
+          <button id="todoAdd">Add</button>
+        </div>
+        <ul id="todoList"></ul>
+        <div class="row inline" style="margin-top:10px;">
+          <label class="check" style="margin:0;"><input type="checkbox" id="todoNudgeOn" /><span class="t">Nudge me at<span class="sub">if some are still open</span></span></label>
+          <input type="time" id="todoNudge" />
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-h">helpers</div>
+        <label class="check"><input type="checkbox" id="toolsClipboard" /><span class="t">Clipboard history<span class="sub">last 20 copies, in memory only and never saved. Skips passwords and keys, and clears when you lock the screen or quit</span></span></label>
+        <label class="check"><input type="checkbox" id="toolsBattery" /><span class="t">Low battery alert<span class="sub">the pet speaks up once at 20% while unplugged</span></span></label>
+        <label class="check"><input type="checkbox" id="toolsEyeRest" /><span class="t">Eye-rest nudges<span class="sub">every 20 minutes of screen time, look 20 feet away for 20 seconds</span></span></label>
+        <div class="acts" style="margin-top:10px;">
+          <button id="openNotes">Open quick notes</button>
         </div>
       </section>
     </section>

@@ -161,6 +161,7 @@ function render() {
   if (document.activeElement !== $('calUrl')) $('calUrl').value = cal.icsUrl || '';
   if (document.activeElement !== $('calLead')) $('calLead').value = String(cal.leadMin == null ? 10 : cal.leadMin);
   renderReminders();
+  renderTools();
   drawPreview();
 }
 function recurLabel(r) {
@@ -397,4 +398,122 @@ $('addTheme').addEventListener('click', async () => {
 });
 $('exportThemes').addEventListener('click', () => window.settings.exportThemes());
 $('importThemes').addEventListener('click', async () => { themes = await window.settings.importThemes(); populateCoats(); renderThemes(); });
+
+// ---- Tools tab (Quick Tools launcher) ------------------------------------------
+const IS_MAC = window.settings.platform === 'darwin';
+const HOTKEY_CHOICES = [
+  ['CommandOrControl+Shift+Space', IS_MAC ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space'],
+  ['CommandOrControl+Alt+Space', IS_MAC ? 'Cmd+Option+Space' : 'Ctrl+Alt+Space'],
+  ['CommandOrControl+Shift+K', IS_MAC ? 'Cmd+Shift+K' : 'Ctrl+Shift+K'],
+  ['Alt+Space', IS_MAC ? 'Option+Space' : 'Alt+Space'],
+  ['off', 'Off (right-click only)'],
+];
+$('toolsHotkey').replaceChildren(...HOTKEY_CHOICES.map(([value, label]) => {
+  const o = document.createElement('option'); o.value = value; o.textContent = label; return o;
+}));
+$('scTarget').placeholder = IS_MAC ? 'mail.google.com or /Applications/Notes.app' : 'mail.google.com or C:\\Projects';
+
+const toolsCfg = () => cfg.tools || {};
+const saveTools = (patch) => save({ tools: { ...toolsCfg(), ...patch } });
+const todoState = () => cfg.todos || { day: '', items: [], nudged: '' };
+const MAX_TODOS = 5;
+const MAX_SHORTCUTS = 30;   // mirrors tools/shortcuts.js
+
+function emptyRow(ul, text) {
+  const li = document.createElement('li'); li.className = 'empty';
+  li.textContent = text; ul.appendChild(li);
+}
+function removeButton(onClick) {
+  const x = document.createElement('span'); x.className = 'x'; x.textContent = '✕'; x.title = 'Remove';
+  x.onclick = onClick;
+  return x;
+}
+
+function renderShortcuts() {
+  const ul = $('shortcuts'); ul.replaceChildren();
+  const list = toolsCfg().shortcuts || [];
+  if (!list.length) { emptyRow(ul, 'Nothing pinned yet.'); return; }
+  for (const sc of list) {
+    const li = document.createElement('li');
+    const t = document.createElement('span'); t.className = 't'; t.textContent = sc.label;
+    const m = document.createElement('span'); m.className = 'm'; m.textContent = sc.target; m.title = sc.target;
+    li.append(t, m, removeButton(() => saveTools({ shortcuts: list.filter((q) => q.id !== sc.id) })));
+    ul.appendChild(li);
+  }
+}
+
+function renderTodos() {
+  const ul = $('todoList'); ul.replaceChildren();
+  const st = todoState();
+  if (!st.items.length) { emptyRow(ul, 'Nothing planned for today.'); return; }
+  for (const item of st.items) {
+    const li = document.createElement('li');
+    li.className = item.done ? 'done' : '';
+    const box = document.createElement('input'); box.type = 'checkbox'; box.checked = item.done;
+    box.setAttribute('aria-label', `Done: ${item.text}`);
+    box.onchange = () => save({ todos: { ...st, items: st.items.map((t) => (t.id === item.id ? { ...t, done: !t.done } : t)) } });
+    const m = document.createElement('span'); m.className = 'm'; m.textContent = item.text;
+    li.append(box, m, removeButton(() => save({ todos: { ...st, items: st.items.filter((t) => t.id !== item.id) } })));
+    ul.appendChild(li);
+  }
+}
+
+function renderTools() {
+  const t = toolsCfg();
+  $('toolsHotkey').value = t.hotkey || 'CommandOrControl+Shift+Space';
+  $('toolsRightClick').checked = t.rightClick !== false;
+  $('toolsSearch').value = t.search || 'google';
+  $('toolsClipboard').checked = !!t.clipboard;
+  $('toolsBattery').checked = t.batteryAlert !== false;
+  $('toolsEyeRest').checked = !!t.eyeRest;
+  $('todoNudgeOn').checked = !!t.todoNudge;
+  $('todoNudge').disabled = !t.todoNudge;
+  if (document.activeElement !== $('todoNudge')) $('todoNudge').value = t.todoNudge || '12:30';
+  const key = HOTKEY_CHOICES.find(([v]) => v === t.hotkey);
+  $('toolsHint').textContent = t.hotkey === 'off'
+    ? 'Right-click the pet to open, note, time, calculate and search from one box.'
+    : `Press ${key ? key[1] : 'the hotkey'} anywhere, or right-click the pet, to open, note, time, calculate and search from one box.`;
+  renderShortcuts();
+  renderTodos();
+}
+
+$('toolsHotkey').addEventListener('change', () => saveTools({ hotkey: $('toolsHotkey').value }));
+$('toolsRightClick').addEventListener('change', () => saveTools({ rightClick: $('toolsRightClick').checked }));
+$('toolsSearch').addEventListener('change', () => saveTools({ search: $('toolsSearch').value }));
+$('toolsClipboard').addEventListener('change', () => saveTools({ clipboard: $('toolsClipboard').checked }));
+$('toolsBattery').addEventListener('change', () => saveTools({ batteryAlert: $('toolsBattery').checked }));
+$('toolsEyeRest').addEventListener('change', () => saveTools({ eyeRest: $('toolsEyeRest').checked }));
+$('todoNudgeOn').addEventListener('change', () => saveTools({ todoNudge: $('todoNudgeOn').checked ? ($('todoNudge').value || '12:30') : '' }));
+$('todoNudge').addEventListener('change', () => { if ($('todoNudgeOn').checked && $('todoNudge').value) saveTools({ todoNudge: $('todoNudge').value }); });
+$('openNotes').addEventListener('click', () => window.settings.openNotes());
+
+// Pinning goes through main's normalize(), which is the real allowlist. If the
+// list did not grow, the target was refused, and the user is told why.
+async function pinShortcut(target) {
+  const before = (toolsCfg().shortcuts || []).length;
+  await saveTools({ shortcuts: [...(toolsCfg().shortcuts || []), { label: '', target }] });
+  const grew = (toolsCfg().shortcuts || []).length > before;
+  $('scMsg').textContent = grew ? ''
+    : before >= MAX_SHORTCUTS ? 'That is the limit of 30 pins. Remove one first.'
+    : 'That is not a web link or a full path, so it was not pinned.';
+  return grew;
+}
+$('scAdd').addEventListener('click', async () => {
+  const target = $('scTarget').value.trim();
+  if (!target) { $('scTarget').focus(); return; }
+  if (await pinShortcut(target)) $('scTarget').value = '';
+});
+$('scTarget').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('scAdd').click(); });
+$('scPickFile').addEventListener('click', async () => { const p = await window.settings.pickShortcut('file'); if (p) pinShortcut(p); });
+$('scPickFolder').addEventListener('click', async () => { const p = await window.settings.pickShortcut('folder'); if (p) pinShortcut(p); });
+
+$('todoAdd').addEventListener('click', () => {
+  const text = $('todoText').value.trim();
+  if (!text) { $('todoText').focus(); return; }
+  const st = todoState();
+  if (st.items.length >= MAX_TODOS) { $('todoText').value = ''; $('todoText').placeholder = 'Five is plenty for one day.'; return; }
+  save({ todos: { ...st, items: [...st.items, { text }] } });
+  $('todoText').value = '';
+});
+$('todoText').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('todoAdd').click(); });
 

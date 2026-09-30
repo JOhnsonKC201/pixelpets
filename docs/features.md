@@ -65,8 +65,8 @@ npm run sheet:dog   # previews/dog-sheet.png - the five base poses only
 - 14 coat patterns: Orange, Mackerel, and Brown tabby, Siamese, Tuxedo, Black,
   Gray, White, Cream, Tortoiseshell, Calico, Slate, Chocolate (a solid warm-brown
   Havana with green eyes), and Russian Blue (cool blue-grey with green eyes). It
-  ships as Mackerel Tabby; right-click the cat to cycle, and your choice is
-  remembered.
+  ships as Mackerel Tabby; Shift+right-click the cat to cycle (or use the tray),
+  and your choice is remembered.
 - Custom coats: design your own, documented in [custom-coats.md](custom-coats.md).
 - The pixel art has a white sticker outline that pops on any wallpaper, soft
   top-lit shading, whiskers, a ground shadow, and sparkly eyes.
@@ -124,6 +124,43 @@ to a plain corner, pick a rest corner in Settings, or use Send it home (Settings
 pixelpets doubles as a quiet productivity companion. Every alert comes through
 your pet, as a meow or a bark and a speech bubble, with an optional real
 desktop notification.
+
+### Quick Tools
+
+Press **Ctrl+Shift+Space** (**Cmd+Shift+Space** on a Mac) from any app, or
+right-click the pet, and a small launcher opens. It is keyboard first: type,
+use the arrows, press Enter. With nothing typed it lists your pinned shortcuts,
+today's to-dos, running timers and a few one-press actions.
+
+- **Pinned shortcuts.** Sites, folders and apps you open every day, added in
+  Settings > Tools. Only web and mail links or full local paths can be pinned;
+  anything else (`javascript:`, network shares, other URL schemes) is refused.
+- **Calculator and units.** `=12*7.5`, `sqrt(2)/2`, `5 km in mi`, `3 GB in MiB`,
+  `72 f to c`. Enter copies the answer. It is a real parser, not `eval`, so
+  nothing typed there can run as code.
+- **Search.** `g`, `ddg` or `b` plus your words. When nothing pinned or listed
+  matches what you typed, the launcher offers a search, and to save it as a note.
+- **Quick notes.** `note ...` appends a timestamped line to `notes.md` in your
+  app-data folder; `open notes` opens it.
+- **Today's to-dos.** `todo ...` adds one, `done 2` ticks the second one. Five
+  at most, because this is a list for today. The pet cheers when you finish
+  one, nudges you once in the afternoon if some are still open (Focus Guard can
+  hold that nudge), and finished items clear overnight.
+- **Timers.** `10m tea`, `1h30m`, `timer 90s`. Up to five at once; the pet
+  announces each one. Timers end if you quit pixelpets.
+- **System.** Snip the screen, lock it (on a Mac: sleep the display, which locks
+  it when a password is required on wake), and keep the screen awake for a
+  download or a talk. Keep awake always starts off.
+- **Clipboard history** (off by default). The last 20 things you copied, kept
+  in memory only and never written to disk. It skips anything that looks like
+  a password, key or token, ignores what you copy while Settings is focused, and is wiped
+  when you lock the screen, turn it off or quit.
+- **Low battery and eye rest.** The pet speaks up once when a laptop reaches
+  20% unplugged (on by default; it re-arms after charging). The optional 20-20-20 nudge reminds you to look away every 20
+  minutes, and skips meetings, quiet hours and time you are away.
+
+If another app already owns the hotkey, the pet tells you once; pick another
+key in Settings > Tools or turn it off and use right-click.
 
 ### Focus Guard
 
