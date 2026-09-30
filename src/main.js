@@ -27,6 +27,9 @@ const { makeSecureIpc } = require('./main/secure-ipc');
 const { registerSettingsIpc } = require('./main/settings-ipc');
 const { makePomodoro } = require('./main/pomodoro');
 const { makeAutostart } = require('./main/autostart');
+const { keepOnTop } = require('./main/keep-on-top');
+const { floorGeometry } = require('./main/geometry');
+const { onRendererGone } = require('./main/crash-reload');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -39,12 +42,10 @@ let cfg = null;                                        // current settings (main
 let themesCache = [];                                  // user-defined custom coats (themes.json)
 // Renderer crash-loop guard. Module scope so the count survives the reload it
 // triggers; see the render-process-gone handler in createWindow().
-let renderCrashes = 0, lastRenderCrashAt = 0;
-const RELOAD_MAX = 5;                                  // consecutive reloads before giving up
-const RELOAD_RESET_MS = 60000;                         // uptime that counts as "recovered"
+let crashState = { crashes: 0, lastAt: 0 };            // overlay crash loop (src/main/crash-reload.js)
 let cursorTimer;
 let tipTimers = [];                                    // one-time first-run hint timers
-let topTimer;                                          // re-asserts always-on-top
+let onTop = null;                                      // re-asserts always-on-top (src/main/keep-on-top.js)
 let settingArea = false, areaTimer = null;             // "set play area (drag)" mode
 let bridge = null;                                     // the agent/notify file watcher (src/main/bridge.js)
 let scheduleTimer;                                     // break-timer + reminder clock
@@ -190,29 +191,20 @@ function createWindow() {
   if (SHEET) params.push('sheet=1');
   win.loadFile(path.join(__dirname, 'index.html'), { search: params.join('&') });
 
-  // Log GPU/renderer crashes - and, for the live pet, auto-recover by reloading
-  // so a transparent-overlay GPU crash never leaves a dead, invisible window.
-  // Backed off and capped: a transparent always-on-top compositor meets every
-  // consumer GPU driver in the wild, and a driver that crashes the renderer on
-  // load would otherwise reload every 400ms forever - burning CPU, spamming the
-  // log and flickering the overlay with no way for the user to see why. After
-  // RELOAD_MAX consecutive crashes it stops and says so, rather than retrying
-  // into the same wall in silence.
+  // A dead renderer is reloaded with backoff, and given up on after a crash loop
+  // (src/main/crash-reload.js).
   win.webContents.on('render-process-gone', (_e, details) => {
     log.error('overlay renderer gone', details);
     if (SHOT || !win || win.isDestroyed() || details.reason === 'clean-exit') return;
-    // A renderer that has stayed up a while is a fresh fault, not a crash loop.
-    if (Date.now() - lastRenderCrashAt > RELOAD_RESET_MS) renderCrashes = 0;
-    lastRenderCrashAt = Date.now();
-    renderCrashes += 1;
-    if (renderCrashes > RELOAD_MAX) {
-      log.error(`overlay crashed ${renderCrashes} times in a row; giving up on reload`);
+    const r = onRendererGone(crashState, Date.now());
+    crashState = r.state;
+    if (r.giveUp) {
+      log.error(`overlay crashed ${crashState.crashes} times in a row; giving up on reload`);
       notify('{name} kept crashing, so I stopped reloading. Restarting the app may help.',
         { dedupeKey: 'render-crash-loop', dedupeMs: 60000, source: 'system' });
       return;
     }
-    const wait = Math.min(400 * 2 ** (renderCrashes - 1), 15000);   // 400ms, 800, 1.6s ... capped
-    setTimeout(() => { if (win && !win.isDestroyed()) win.reload(); }, wait);
+    setTimeout(() => { if (win && !win.isDestroyed()) win.reload(); }, r.reloadIn);
   });
   win.webContents.on('console-message', (_e, _l, message) => console.log('[r]', message));
 
@@ -287,40 +279,8 @@ function createWindow() {
   screen.on('display-added', refit);
   screen.on('display-removed', refit);
 
-  // Keep the cat above EVERYTHING. alwaysOnTop at the highest level can still be
-  // stolen by fullscreen apps / other topmost windows, so re-assert it on a timer
-  // (and reclaim the very top with moveTop).
-  const reassertTop = () => {
-    if (!win || win.isDestroyed()) return;
-    if (cfg && cfg.onTop === false) return;       // user turned "always on top" off
-    try {
-      // The off->on toggle and moveTop() are a WINDOWS re-raise trick. On macOS they
-      // drop the window from NSScreenSaverWindowLevel to normal and back on every
-      // tick - 1.4 times a second, forever - which is window-server thrash the user
-      // sees as flicker and the battery sees as work.
-      if (process.platform !== 'darwin') {
-        win.setAlwaysOnTop(false);                // toggle off->on forces a real re-raise on Windows
-        win.setAlwaysOnTop(true, 'screen-saver');
-        win.moveTop();
-      } else {
-        win.setAlwaysOnTop(true, 'screen-saver');
-      }
-      // Collection behaviour is sticky, so this does not belong on the timer at all
-      // on macOS; it is set once at window creation. Re-assert only off-timer events
-      // (a display change can drop it).
-    } catch (e) { /* ignore */ }
-  };
-  // Re-assert the Spaces/fullscreen behaviour only on the events that can actually
-  // drop it, never on the 700ms tick (see skipTransformProcessType above).
-  const reassertSpaces = () => {
-    if (process.platform !== 'darwin' || !win || win.isDestroyed()) return;
-    try { win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true }); } catch (e) { /* ignore */ }
-  };
-  reassertTop();                                  // claim the top immediately
-  topTimer = setInterval(reassertTop, 700);       // and hold it (toggle re-raise each tick)
-  win.webContents.on('did-finish-load', () => { reassertTop(); reassertSpaces(); });
-  screen.on('display-metrics-changed', () => { reassertTop(); reassertSpaces(); });
-  screen.on('display-added', () => { reassertTop(); reassertSpaces(); });
+  // Keep the pet above everything (src/main/keep-on-top.js).
+  onTop = keepOnTop({ win, getCfg: () => cfg, screen });
 }
 
 // ---- settings: load, broadcast, persist ------------------------------------
@@ -331,23 +291,11 @@ function applyConfigToOverlay() {
     broadcastPower();   // keep the derived low-power flag + cursor cadence in sync with config
   }
 }
-// Send the authoritative bottom work-area inset (taskbar height) from Electron's screen
-// API. The overlay's DOM window.screen is unreliable at non-100% DPI (it mixes physical
-// and logical pixels), which lands the cat mid-screen; this is in DIP, matching the
-// window's innerHeight, so the cat finds the true taskbar line.
+// Tell the overlay where the floor is, from Electron's screen API (src/main/geometry.js).
 function sendGeom() {
   if (!win || win.isDestroyed() || !win.webContents) return;
-  const d = screen.getPrimaryDisplay(), b = d.bounds, wa = d.workArea;
-  const bottomInset = Math.max(0, (b.y + b.height) - (wa.y + wa.height));   // 0 = no bottom taskbar (top/side/auto-hide) -> renderer rests at the true bottom
-  const topInset = Math.max(0, wa.y - b.y), leftInset = Math.max(0, wa.x - b.x), rightInset = Math.max(0, (b.x + b.width) - (wa.x + wa.width));
-  // The floor line = the work-area bottom (top edge of the taskbar/Dock) measured from
-  // the window's TOP edge (the overlay is pinned to the display's top-left). This is the
-  // authoritative floor whether or not the OS lets the overlay cover the taskbar region:
-  // on Windows the overlay is clamped to the work area, so its own innerHeight already
-  // excludes the taskbar - subtracting bottomInset again would float the cat. Sending an
-  // absolute floor line avoids that double-count.
-  const bottomWorkY = (wa.y + wa.height) - b.y;
-  win.webContents.send('geom', { bottomInset, topInset, leftInset, rightInset, bottomWorkY });
+  const d = screen.getPrimaryDisplay();
+  win.webContents.send('geom', floorGeometry(d.bounds, d.workArea));
 }
 function sendThemes() {
   if (win && !win.isDestroyed() && win.webContents) win.webContents.send('themes', themesCache);
@@ -698,7 +646,7 @@ function cleanup() {
   if (cursorTimer) clearInterval(cursorTimer);
   tipTimers.forEach(clearTimeout); tipTimers = [];   // a hint must not fire mid-teardown
   if (areaTimer) clearTimeout(areaTimer);
-  if (topTimer) clearInterval(topTimer);
+  if (onTop) onTop.stop();
   if (hookRetry) { clearInterval(hookRetry); hookRetry = null; }
   if (scheduleTimer) clearInterval(scheduleTimer);
   pomodoro.stop();
