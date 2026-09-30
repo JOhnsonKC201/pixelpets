@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; base-uri 'none'; form-action 'none';" />
+  <title>Report a problem</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #191b22; --panel: #23262f; --line: #363b47; --fg: #eceef3; --muted: #9aa0ad;
+      --accent: #e8943c; --accent-deep: #b5641d;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #f6f6f8; --panel: #ffffff; --line: #d9dce3; --fg: #16181d; --muted: #5d6370; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body { display: flex; flex-direction: column; gap: 12px; padding: 18px; background: var(--bg); color: var(--fg);
+      font: 13px/1.5 "Segoe UI Variable Text", "Segoe UI", -apple-system, system-ui, sans-serif; }
+    h1 { margin: 0; font-size: 17px; font-weight: 600; }
+    p { margin: 0; color: var(--muted); }
+    textarea { flex: 1; min-height: 180px; resize: none; padding: 12px; border-radius: 8px; border: 1px solid var(--line);
+      background: var(--panel); color: var(--fg); font: 12px/1.5 "Cascadia Mono", "SF Mono", ui-monospace, Consolas, monospace; }
+    textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .acts { display: flex; gap: 8px; }
+    .acts .grow { flex: 1; }
+    button { font: 600 13px/1 inherit; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--muted); }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button.primary { background: var(--accent); border-color: var(--accent-deep); color: #1a1c22; }
+  </style>
+</head>
+<body>
+  <h1>Report a problem</h1>
+  <p>This is everything that goes into the report, plus a title and the version number. Nothing is sent by pixelpets: <b>Open on GitHub</b> opens your browser with it filled in, and you can still edit or cancel there. Add what happened in the form.</p>
+  <textarea id="body" readonly aria-label="Report text"></textarea>
+  <div class="acts">
+    <button id="folder">Open log folder</button>
+    <span class="grow"></span>
+    <button id="cancel">Cancel</button>
+    <button id="send" class="primary">Open on GitHub</button>
+  </div>
+  <script src="report-renderer.js"></script>
+</body>
+</html>

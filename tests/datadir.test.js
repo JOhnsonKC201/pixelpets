@@ -33,6 +33,7 @@ test('an upgrade carries the old data directory across', () => {
   write(fromDir, 'themes.json', '[{"name":"custom"}]');
   write(fromDir, 'email.cred', 'encrypted-bytes');
   write(fromDir, 'notify-history.json', '[]');
+  write(fromDir, 'notes.md', '# Quick notes\n');
 
   const report = datadir.migrate({ fromDir, toDir });
 
@@ -132,7 +133,10 @@ test('every persisted file is covered by the migration list', () => {
   // fails to migrate. Catch that by reading the sources rather than trusting memory.
   const srcDir = path.join(__dirname, '..', 'src');
   const referenced = new Set();
-  for (const f of fs.readdirSync(srcDir).filter((n) => n.endsWith('.js'))) {
+  // Recursive: stores live in subfolders too (src/tools/ keeps notes.md), and a
+  // top-level-only scan silently missed them.
+  const sources = fs.readdirSync(srcDir, { recursive: true }).filter((n) => String(n).endsWith('.js'));
+  for (const f of sources) {
     const body = fs.readFileSync(path.join(srcDir, f), 'utf8');
     // path.join(app.getPath('userData'), 'something.json')
     const re = /getPath\(\s*['"]userData['"]\s*\)\s*,\s*['"]([^'"]+)['"]/g;
@@ -146,7 +150,9 @@ test('every persisted file is covered by the migration list', () => {
   //   for this bundle. On macOS the login item is registered per app bundle, so a
   //   renamed install genuinely needs to make that decision again - migrating the
   //   marker would leave the new bundle never registered and autostart silently dead.
-  const NOT_USER_DATA = new Set(['.autostart-set']);
+  //   logs/ is the diagnostic log (logger.js). It postdates the rename, holds
+  //   nothing a person made, and rotates itself away anyway.
+  const NOT_USER_DATA = new Set(['.autostart-set', 'logs']);
   for (const name of referenced) {
     if (NOT_USER_DATA.has(name)) {
       assert.ok(!datadir.DATA_FILES.includes(name),

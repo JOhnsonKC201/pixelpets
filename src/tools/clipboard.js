@@ -56,4 +56,4 @@ function pushEntry(list, text) {
 
 const preview = (s) => String(s).replace(/\s+/g, ' ').trim().slice(0, PREVIEW_LEN);
 
-module.exports = { isSecretLike, pushEntry, preview, MAX_ENTRIES };
+module.exports = { isSecretLike, pushEntry, preview, MAX_ENTRIES, SECRET_PATTERNS };

@@ -107,7 +107,10 @@ async function runAction(api, action) {
   const fn = action && Object.prototype.hasOwnProperty.call(RUNNERS, action.type) ? RUNNERS[action.type] : null;
   if (!fn) return;
   try { await fn(api, action); }
-  catch (e) { api.say('Something went wrong there.', { level: 'warn' }); }
+  catch (e) {
+    if (api.log) api.log.error(`quick tools action failed: ${action.type}`, e);
+    api.say('Something went wrong there.', { level: 'warn' });
+  }
 }
 
 module.exports = { runAction };

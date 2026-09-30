@@ -171,7 +171,7 @@ chase down and bring back.
 | **Type** (any app) | Front-paw kneading; fast typing overheats it |
 | **Scroll** (any app) | Rears up and swipes at a blowing leaf, or climbs a yarn rope on the four coats that ship painted climb art |
 | **Double-click** it | Opens Settings (name, timers, reminders, coat) |
-| **Tray icon** | Settings, Start break now, Quick tools, Keep screen awake, Lock screen, running timers, Clipboard history and Eye-rest toggles, coat picker, play area, sound and hunt and mood toggles, Quit |
+| **Tray icon** | Settings, Start break now, Quick tools, Keep screen awake, Lock screen, running timers, Clipboard history and Eye-rest toggles, coat picker, play area, sound and hunt and mood toggles, Report a problem, Quit |
 
 ### Quick Tools
 
@@ -236,6 +236,12 @@ network connections at all unless you set up the optional mail or calendar
 alerts, and those talk only to the servers you point them at, from isolated
 worker processes. Your IMAP app password is stored encrypted at rest (Electron
 `safeStorage`) and never written to `settings.json`.
+
+pixelpets keeps a small diagnostic log on your machine (`logs/pixelpets.log` in
+the app-data folder, three files of at most 1 MB). Emails, links, tokens and your
+user name inside file paths are removed before a line is written. It is never uploaded: **Report a
+problem** (tray, or Settings > Tools) shows you the exact text first, and only
+your browser, opening GitHub's issue form when you click, ever carries it.
 
 ## Documentation
 

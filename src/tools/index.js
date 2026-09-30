@@ -255,6 +255,7 @@ const api = {
   timers: () => timers, setTimers, clips: () => clips, rememberClip: (t) => { lastClip = t; },
   notesFile, sendAction: (id) => d.sendAction(id), triggerBreak: () => d.triggerBreak(),
   openSettings: () => d.openSettings(), rebuildTray: () => d.rebuildTray(),
+  get log() { return d && d.log; },
 };
 
 // ---- lifecycle --------------------------------------------------------------------
