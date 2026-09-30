@@ -12,18 +12,10 @@
 // time, which is not available under `node --test`.
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
-
-const ROOT = path.join(__dirname, '..');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 test('the --shot window covers the canvas the overlay draws into', () => {
   const renderer = require('../src/overlay/parts').readOverlaySource();
-  // The main process: main.js plus the modules it was split into.
-  const mainDir = path.join('src', 'main');
-  const main = [path.join('src', 'main.js'), ...fs.readdirSync(path.join(ROOT, mainDir)).map((f) => path.join(mainDir, f))]
-    .map(read).join('\n');
+  const main = require('./helpers/sources').readMainSource();   // main.js + src/main/
 
   // the overlay: `viewW = 260; viewH = 320; viewDpr = 1;` inside `if (SHOT) {`
   const canvas = renderer.match(/viewW\s*=\s*(\d+)\s*;\s*viewH\s*=\s*(\d+)\s*;\s*viewDpr\s*=\s*1/);

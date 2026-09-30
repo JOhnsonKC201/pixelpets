@@ -23,6 +23,8 @@ const { createReelWindow } = require('./main/reel-window');
 const { buildTrayTemplate } = require('./main/tray-menu');
 const { makeNotifyHistory, relTime } = require('./main/notify-history');
 const { watchBridge } = require('./main/bridge');
+const { makeSecureIpc } = require('./main/secure-ipc');
+const { registerSettingsIpc } = require('./main/settings-ipc');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -757,26 +759,14 @@ function cleanup() {
   if (tray) { try { tray.destroy(); } catch (e) { /* ignore */ } tray = null; }
 }
 
-// Defense-in-depth: only accept IPC from our own local windows. Both the overlay and settings
-// windows load file:// pages, and navigation + window.open are blocked (hardenNav), so any
-// sender whose frame URL isn't file:// is bogus. Wrap on()/handle() so every handler is guarded.
-function isTrustedSender(e) {
-  const wc = e && e.sender;
-  if (!wc) return false;
-  // Primary + reliable: the IPC came from one of the windows WE created.
-  if ((win && !win.isDestroyed() && wc === win.webContents) ||
-      (settingsWin && !settingsWin.isDestroyed() && wc === settingsWin.webContents)) return true;
-  // The Quick Tools launcher is also a local file:// page, but it is the one window
-  // that takes free typing, so it gets its OWN channels (tools/index.js) and nothing
-  // else: it must never reach settings:save, the mail password or the calendar.
-  if (tools.ownsSender(wc)) return false;
-  if (reportWin && reportWin.owns(wc)) return false;   // the report window has its own channels too
-  // Fallback: any local file:// frame (navigation/window.open are blocked, so this is still ours).
-  try { const u = e.senderFrame && e.senderFrame.url; return typeof u === 'string' && u.startsWith('file:'); }
-  catch (_) { return false; }
-}
-const onSecure = (ch, fn) => ipcMain.on(ch, (e, ...a) => { if (isTrustedSender(e)) fn(e, ...a); });
-const handleSecure = (ch, fn) => ipcMain.handle(ch, (e, ...a) => (isTrustedSender(e) ? fn(e, ...a) : undefined));
+// Only our own windows may use IPC, and the launcher and report window only
+// their own channels (src/main/secure-ipc.js).
+const { onSecure, handleSecure } = makeSecureIpc({
+  ipcMain,
+  isMainWindow: (wc) => (win && !win.isDestroyed() && wc === win.webContents) ||
+    (settingsWin && !settingsWin.isDestroyed() && wc === settingsWin.webContents),
+  hasOwnChannels: (wc) => tools.ownsSender(wc) || !!(reportWin && reportWin.owns(wc)),
+});
 
 // Renderer reports the cat's interactive bbox (overlay-local px) + drag state.
 onSecure('hot', (_e, o) => {
@@ -813,81 +803,17 @@ onSecure('sheet:image', (_e, dataUrl) => {
   } catch (e) { console.log('[sheet-error]', e.message); }
   app.quit();
 });
-onSecure('settings:open', () => openSettings());
-onSecure('report:open', () => { if (reportWin) reportWin.open(); });
-onSecure('settings:save-pattern', (_e, i) => {
-  if (!cfg) return;
-  persistAndBroadcast({ ...cfg, [speciesOf(cfg.species).id === 'dog' ? 'dogPattern' : 'pattern']: i });
-});
-onSecure('settings:save-species', (_e, id) => {
-  if (!cfg) return;
-  const next = SPECIES[id] ? id : 'cat';
-  const patch = { ...cfg, species: next };
-  if (next === 'dog' && !Number.isFinite(cfg.dogPattern)) patch.dogPattern = defaultCoatIndex('dog');
-  persistAndBroadcast(patch);
-});
-onSecure('settings:close', () => { if (settingsWin && !settingsWin.isDestroyed()) settingsWin.close(); });
-onSecure('settings:testSound', () => {
-  notify('Hi {name}!', { source: 'test', dedupeMs: 0, os: false });   // a sound test shouldn't also pop a desktop toast
-});
-// "Make it do something": the settings window asks for a behaviour by name and the
-// overlay decides what that means for the species it is currently wearing. Main is
-// a relay and deliberately does not map ids to poses - the renderer is the only
-// place that knows a dog's version of "go chase something" is its ball rather than
-// a butterfly. Allow-listed rather than forwarded blind, so the channel cannot
-// become a way to poke arbitrary renderer state.
-const PET_ACTIONS = new Set(['companion', 'give', 'play', 'stretch', 'groom', 'loaf', 'home']);
-// A function declaration rather than a const, so the tray menu built further up this file
-// can call it: the tray is the only surface that reaches 'home' with settings closed.
+// The overlay's one-shot actions. A function declaration so the tray menu can
+// reach 'home' with settings closed.
 function sendAction(id) { if (win && !win.isDestroyed()) win.webContents.send('action', id); }
-onSecure('settings:action', (_e, id) => {
-  if (!PET_ACTIONS.has(id)) return;
-  sendAction(id);
-});
-handleSecure('email:passwordInfo', () => mail.passwordInfo());
-handleSecure('email:setPassword', (_e, pw) => mail.setPassword(pw));
-handleSecure('email:test', (_e, pw) => mail.test(cfg, pw && String(pw).length ? String(pw) : null));
-handleSecure('calendar:test', () => cal.test(cfg));
-handleSecure('settings:get', () => cfg);
-handleSecure('settings:save', (_e, partial) => {
-  // reject anything that isn't a small plain object before merging (normalize is the
-  // real sanitizer, but this caps the in-flight allocation and drops junk payloads)
-  if (!partial || typeof partial !== 'object' || Array.isArray(partial)) return cfg;
-  try { if (JSON.stringify(partial).length > 65536) return cfg; } catch (e) { return cfg; }
-  persistAndBroadcast({ ...cfg, ...partial });
-  return cfg;
-});
-handleSecure('themes:get', () => themesCache);
-handleSecure('themes:add', (_e, t) => { themesCache = themes.save([...themesCache, t]); broadcastThemes(); rebuildTrayMenu(); return themesCache; });
-handleSecure('themes:delete', (_e, name) => {
-  const removed = themesCache.findIndex((x) => x.name === name);
-  themesCache = themes.save(themesCache.filter((x) => x.name !== name));
-  broadcastThemes(); rebuildTrayMenu();
-  // Coat indices run built-ins first, custom coats after, so deleting one shifts
-  // every coat below it up a slot. Re-anchor the cat's coat or it quietly becomes
-  // whichever coat inherited the index.
-  if (removed >= 0 && cfg) {
-    const next = config.coatAfterThemeRemoval(cfg.pattern, removed);
-    if (next !== cfg.pattern) persistAndBroadcast({ ...cfg, pattern: next });
-  }
-  return themesCache;
-});
-handleSecure('themes:export', async () => {
-  const r = await dialog.showSaveDialog(settingsWin || win, { title: 'Export custom coats', defaultPath: 'pixelpets-coats.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
-  if (r.canceled || !r.filePath) return false;
-  try { fs.writeFileSync(r.filePath, JSON.stringify({ themes: themesCache }, null, 2)); return true; } catch (e) { return false; }
-});
-handleSecure('themes:import', async () => {
-  const r = await dialog.showOpenDialog(settingsWin || win, { title: 'Import custom coats', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
-  if (r.canceled || !r.filePaths || !r.filePaths[0]) return themesCache;
-  try {
-    const data = JSON.parse(fs.readFileSync(r.filePaths[0], 'utf8').replace(/^﻿/, ''));
-    const incoming = themes.clean(Array.isArray(data) ? data : (data && data.themes));
-    const have = new Set(themesCache.map((t) => t.name.toLowerCase()));
-    themesCache = themes.save(themesCache.concat(incoming.filter((t) => !have.has(t.name.toLowerCase()))));
-    broadcastThemes(); rebuildTrayMenu();
-  } catch (e) { /* ignore bad file */ }
-  return themesCache;
+registerSettingsIpc({
+  onSecure, handleSecure, getCfg: () => cfg, persist: persistAndBroadcast,
+  getThemes: () => themesCache, setThemes: (list) => { themesCache = list; },
+  themesChanged: () => { broadcastThemes(); rebuildTrayMenu(); },
+  themes, config, pets: { SPECIES, speciesOf, defaultCoatIndex }, mail, cal, dialog,
+  getDialogParent: () => settingsWin || win,
+  getSettingsWin: () => (settingsWin && !settingsWin.isDestroyed() ? settingsWin : null),
+  openSettings, openReport: () => { if (reportWin) reportWin.open(); }, sendAction, notify,
 });
 
 app.whenReady().then(() => {
