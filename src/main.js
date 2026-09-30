@@ -32,6 +32,7 @@ const { floorGeometry } = require('./main/geometry');
 const { onRendererGone } = require('./main/crash-reload');
 const { installAppGuards } = require('./main/app-guards');
 const { startSoak } = require('./main/soak');
+const { captureShot } = require('./main/shot');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -220,14 +221,7 @@ function createWindow() {
   if (!SHOT && !SHEET) startInputHook();
 
   if (SHOT) {
-    win.webContents.on('did-finish-load', () => {
-      setTimeout(async () => {
-        const img = await win.webContents.capturePage();
-        fs.writeFileSync(path.join(__dirname, '..', '_render.png'), img.toPNG());
-        console.log('[captured _render.png]');
-        app.quit();
-      }, shotAtMs);
-    });
+    captureShot({ app, win, delayMs: shotAtMs, out: cli.shotOut || path.join(APP_DIR, '_render.png'), fs });
     return;
   }
 

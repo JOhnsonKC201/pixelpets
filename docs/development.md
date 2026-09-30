@@ -150,7 +150,9 @@ could use to run code as pixelpets. `build.electronFuses` in `package.json` stop
 the binary from being run as plain Node (`ELECTRON_RUN_AS_NODE`), reading
 `NODE_OPTIONS` or opening a debugger from the command line, and makes it load
 only from its own `app.asar`, checked against a hash built into the executable.
-`tests/security-pins.test.js` fails if any of that is loosened.
+`tests/security-pins.test.js` fails if any of that is loosened, and the
+`packaged-boot` CI job packs the app and boots the result on Windows and macOS
+(`node scripts/bootcheck.js --packaged` after `npx electron-builder --dir`).
 
 Because of that, nothing may start the app binary as Node. The mail and calendar
 checks run as Electron utility processes through `src/worker-host.js`; new

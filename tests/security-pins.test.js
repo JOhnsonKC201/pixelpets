@@ -69,8 +69,8 @@ test('release builds cannot be run as plain Node or debugged from the command li
   assert.strictEqual(fuses.enableNodeCliInspectArguments, false);
   assert.strictEqual(fuses.onlyLoadAppFromAsar, true);
   assert.strictEqual(fuses.enableEmbeddedAsarIntegrityValidation, true);
-  // audio.js reads an optional local meow file over file://, which needs these privileges.
-  assert.strictEqual(fuses.grantFileProtocolExtraPrivileges, true);
+  // Every page is loaded with loadFile and reads nothing else over file://.
+  assert.strictEqual(fuses.grantFileProtocolExtraPrivileges, false);
 });
 
 test('nothing relies on running the app binary as Node', () => {
