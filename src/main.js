@@ -22,25 +22,11 @@ const { hardenNav } = require('./main/harden-nav');
 const { createReelWindow } = require('./main/reel-window');
 const { buildTrayTemplate } = require('./main/tray-menu');
 const { makeNotifyHistory, relTime } = require('./main/notify-history');
+const { watchBridge } = require('./main/bridge');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-
-// The two bridge filenames below keep the old pixelcat name on purpose. They are a
-// published contract, not branding: users have already pasted these paths into agent
-// hooks and CI scripts, and `scripts/install-hook.js` printed them into config files
-// we cannot reach in to edit. Renaming either one would break every installation that
-// exists, silently, because the writer would still succeed against a file nobody
-// reads. Each name is spelled out again in the writer (agent-hook.js, notify.js);
-// tests/bridge-paths.test.js fails if the two sides ever drift apart.
-//
-// AI-agent status file: hooks (e.g. Claude Code) write 'thinking' | 'done' here
-// and the cat reacts. See README "AI agent reactions".
-const AGENT_FILE = path.join(os.tmpdir(), 'pixelcat-agent.state');
-// Generic message bridge: any external tool appends JSON lines here (see
-// scripts/notify.js) and the cat shows a bubble + toast. README "Notify the cat".
-const NOTIFY_FILE = path.join(os.tmpdir(), 'pixelcat-notify.jsonl');
 
 let win;                                               // the overlay (the cat)
 let settingsWin = null;                                // settings window (when open)
@@ -56,8 +42,7 @@ let cursorTimer;
 let tipTimers = [];                                    // one-time first-run hint timers
 let topTimer;                                          // re-asserts always-on-top
 let settingArea = false, areaTimer = null;             // "set play area (drag)" mode
-let agentTimer;
-let agentWatcher;
+let bridge = null;                                     // the agent/notify file watcher (src/main/bridge.js)
 let scheduleTimer;                                     // break-timer + reminder clock
 let breakAnchor = 0;                                   // ms timestamp the break countdown started
 let lastMinuteKey = '';                                // 'YYYY-M-D-HH:MM' for reminder dedupe
@@ -303,65 +288,12 @@ function createWindow() {
   // cursor->eyes, so a coarser sample still tracks smoothly while sparing the CPU.
   startCursorTimer(cursorTick);
 
-  // Watch the AI-agent status file; forward changes to the renderer. Event-driven
-  // via fs.watch (the filename filter skips unrelated temp churn); falls back to a
-  // slow poll if watching the temp dir isn't available.
-  let lastAgent = '';
-  const pushAgent = () => {
-    if (!win || win.isDestroyed()) return;
-    let s;
-    try { s = (fs.readFileSync(AGENT_FILE, 'utf8').trim() || 'idle'); } catch (e) { s = 'idle'; }
-    if (s !== lastAgent) { lastAgent = s; win.webContents.send('agent', s); }
-  };
-
-  // Tail the message-bridge file. We baseline the offset to the current size so a
-  // backlog from before launch isn't replayed; then forward only freshly-appended
-  // lines, de-duped by id, through notify() (bubble + toast + meow).
-  let notifyOffset = 0; const notifySeen = new Set(); let notifyTail = '';
-  try { notifyOffset = fs.statSync(NOTIFY_FILE).size; } catch (e) { notifyOffset = 0; }
-  const pushNotify = () => {
-    if (!win || win.isDestroyed()) return;
-    let size;
-    try { size = fs.statSync(NOTIFY_FILE).size; } catch (e) { return; }
-    if (size < notifyOffset) { notifyOffset = 0; notifyTail = ''; }   // truncated/rotated
-    if (size === notifyOffset) return;
-    let chunk;
-    try {
-      const fd = fs.openSync(NOTIFY_FILE, 'r');
-      const buf = Buffer.alloc(size - notifyOffset);
-      fs.readSync(fd, buf, 0, buf.length, notifyOffset);
-      fs.closeSync(fd);
-      chunk = buf.toString('utf8');
-    } catch (e) { return; }
-    notifyOffset = size;
-    notifyTail += chunk;
-    const lines = notifyTail.split('\n');
-    notifyTail = lines.pop();   // keep any trailing partial line for next time
-    if (notifyTail.length > 65536) notifyTail = '';   // a producer that never writes a newline can't grow memory unbounded
-    for (const line of lines) {
-      const t = line.trim(); if (!t) continue;
-      let o; try { o = JSON.parse(t); } catch (e) { continue; }
-      if (!o || typeof o !== 'object' || !o.message) continue;
-      const id = String(o.id || (o.ts || '') + ':' + o.message);
-      if (notifySeen.has(id)) continue;
-      notifySeen.add(id);
-      if (notifySeen.size > 500) { for (const k of notifySeen) { notifySeen.delete(k); if (notifySeen.size <= 250) break; } }
-      // sanitize fields from the untrusted bridge file before they reach Notification + renderer IPC
-      const level = ['info', 'success', 'warn', 'alert'].includes(o.level) ? o.level : 'info';
-      const ttl = Math.max(500, Math.min(30000, Math.round(Number(o.ttl)) || 5000));
-      const title = String(o.title || 'pixelpets').slice(0, 80);
-      notify(String(o.message).slice(0, 300), { source: 'bridge', dedupeKey: 'bridge:' + id, title, level, ttl, sound: o.sound !== false });
-    }
-  };
-  try { lastAgent = fs.readFileSync(AGENT_FILE, 'utf8').trim(); } catch (e) { /* none yet */ }
-  try {
-    agentWatcher = fs.watch(os.tmpdir(), (_ev, fname) => {
-      if (!fname || fname === path.basename(AGENT_FILE)) pushAgent();
-      if (!fname || fname === path.basename(NOTIFY_FILE)) pushNotify();
-    });
-  } catch (e) {
-    agentTimer = setInterval(() => { pushAgent(); pushNotify(); }, 500);
-  }
+  // Other programs talk to the pet through two temp files (src/main/bridge.js).
+  bridge = watchBridge({
+    isAlive: () => !!(win && !win.isDestroyed()),
+    onAgent: (state) => win.webContents.send('agent', state),
+    onMessage: (message, opts) => notify(message, opts),
+  });
 
   // Keep the overlay matched to the primary (laptop) display on resolution/DPI changes,
   // so the cat never ends up clipped or with a broken cursor→canvas mapping.
@@ -813,11 +745,10 @@ function cleanup() {
   if (areaTimer) clearTimeout(areaTimer);
   if (topTimer) clearInterval(topTimer);
   if (hookRetry) { clearInterval(hookRetry); hookRetry = null; }
-  if (agentTimer) clearInterval(agentTimer);
   if (scheduleTimer) clearInterval(scheduleTimer);
   if (pomoTimer) clearTimeout(pomoTimer);
   notifyHistory.flush();   // write any pending history now so it can't fire mid-teardown
-  if (agentWatcher) { try { agentWatcher.close(); } catch (e) { /* ignore */ } }
+  if (bridge) bridge.stop();
   if (hookStarted) { try { require('uiohook-napi').uIOhook.stop(); } catch (e) { /* ignore */ } }
   try { mail.stop(); } catch (e) { /* ignore */ }
   try { cal.stop(); } catch (e) { /* ignore */ }
