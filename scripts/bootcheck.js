@@ -20,7 +20,10 @@ const MIN_PNG_BYTES = 1000;
 function packagedBinary() {
   const dist = path.join(root, 'dist');
   const candidates = process.platform === 'darwin'
+    // Prefer the build for this machine's CPU (dist/mac-arm64 on Apple Silicon,
+    // dist/mac on Intel); the other one would only run under translation.
     ? (fs.existsSync(dist) ? fs.readdirSync(dist) : []).filter((d) => d.startsWith('mac'))
+      .sort((a, b) => Number(b.includes(process.arch)) - Number(a.includes(process.arch)))
       .map((d) => path.join(dist, d, 'pixelpets.app', 'Contents', 'MacOS', 'pixelpets'))
     : [path.join(dist, 'win-unpacked', 'pixelpets.exe')];
   const found = candidates.find((p) => fs.existsSync(p));
