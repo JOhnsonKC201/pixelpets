@@ -695,7 +695,10 @@ onSecure('quit', () => app.quit());
 function getPetAnchor() {
   return { x: origin.x + hot.x, y: origin.y + hot.y, w: hot.w, h: hot.h };
 }
-onSecure('sheet:image', (_e, dataUrl) => {
+// The contact sheet's export: write the PNG into the repo and quit. It only
+// exists in --sheet mode; in a normal run nothing may make main write files
+// into the app folder or quit on the overlay's say-so.
+if (SHEET) onSecure('sheet:image', (_e, dataUrl) => {
   try {
     const b64 = String(dataUrl || '').replace(/^data:image\/png;base64,/, '');
     const dir = path.join(APP_DIR, 'previews');
