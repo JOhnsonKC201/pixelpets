@@ -108,12 +108,13 @@ function durationOf(ev) {
 }
 
 // is require()'d (e.g. from a unit test) just expose the pure functions below.
-if (require.main === module) {
-process.once('message', async (msg) => {
-  const send = (m) => { try { process.send(m); } catch (e) { /* parent gone */ } };
+if (require.main === module || process.parentPort) {
+const { onJob, reply, exitSoon } = require('./worker-port');
+onJob(async (msg) => {
+  const send = reply;
   try {
     const url = String((msg && msg.url) || '');
-    if (!url) { send({ ok: false, error: 'No calendar URL.' }); process.exit(0); return; }
+    if (!url) { send({ ok: false, error: 'No calendar URL.' }); exitSoon(); return; }
     const ical = require('node-ical');
     const text = await fetchIcsSafely(url);            // SSRF-guarded fetch (scheme + IP allowlist, size cap, redirects re-checked)
     const data = await ical.async.parseICS(text);
@@ -148,7 +149,7 @@ process.once('message', async (msg) => {
   } catch (e) {
     send({ ok: false, error: classify(e) });
   } finally {
-    process.exit(0);
+    exitSoon();
   }
 });
 

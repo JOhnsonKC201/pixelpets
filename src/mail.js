@@ -6,7 +6,7 @@
 //
 // The first poll after launch only establishes a baseline, so we never announce
 // the inbox you already had; later polls announce when the unseen count rises.
-const { fork } = require('child_process');
+const { runWorker } = require('./worker-host');
 const path = require('path');
 const fs = require('fs');
 const { app, safeStorage } = require('electron');
@@ -118,20 +118,8 @@ function credsFromCfg(cfg, plainOverride) {
 
 // Spawn the worker, feed it creds, resolve with its single result (or a timeout).
 function spawnWorker(creds, timeoutMs, cb) {
-  let done = false;
-  const finish = (res) => { if (done) return; done = true; clearTimeout(watchdog); try { child.kill(); } catch (e) { /* gone */ } cb(res); };
-  let child;
-  try {
-    child = fork(path.join(__dirname, 'mail-worker.js'), [], {
-      stdio: 'ignore',
-      env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '1' }),
-    });
-  } catch (e) { cb({ ok: false, error: 'Could not start the mail worker.' }); return; }
-  const watchdog = setTimeout(() => finish({ ok: false, error: 'Timed out connecting.' }), timeoutMs || 20000);
-  child.on('message', (msg) => finish(msg));
-  child.on('error', () => finish({ ok: false, error: 'Mail worker failed.' }));
-  child.on('exit', () => finish({ ok: false, error: 'Mail worker exited.' }));
-  try { child.send(creds); } catch (e) { finish({ ok: false, error: 'Could not reach the mail worker.' }); }
+  runWorker(path.join(__dirname, 'mail-worker.js'), creds,
+    { timeoutMs: timeoutMs || 20000, name: 'mail', timeoutError: 'Timed out connecting.' }, cb);
 }
 
 function poll() {

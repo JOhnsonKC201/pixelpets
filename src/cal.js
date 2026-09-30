@@ -2,7 +2,7 @@
 // forked worker (cal-worker.js), then arms a one-shot timer per upcoming event to
 // nudge you leadMin before it starts (bubble + toast + meow via notify()). A
 // bounded set of fired keys prevents re-firing the same occurrence across re-fetches.
-const { fork } = require('child_process');
+const { runWorker } = require('./worker-host');
 const path = require('path');
 
 let pollTimer = null;
@@ -16,20 +16,8 @@ let getCfg = null;
 let lastEvents = [];
 
 function spawnWorker(url, timeoutMs, cb) {
-  let done = false;
-  const finish = (res) => { if (done) return; done = true; clearTimeout(watchdog); try { child.kill(); } catch (e) { /* gone */ } cb(res); };
-  let child;
-  try {
-    child = fork(path.join(__dirname, 'cal-worker.js'), [], {
-      stdio: 'ignore',
-      env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '1' }),
-    });
-  } catch (e) { cb({ ok: false, error: 'Could not start the calendar worker.' }); return; }
-  const watchdog = setTimeout(() => finish({ ok: false, error: 'Timed out loading the calendar.' }), timeoutMs || 20000);
-  child.on('message', (msg) => finish(msg));
-  child.on('error', () => finish({ ok: false, error: 'Calendar worker failed.' }));
-  child.on('exit', () => finish({ ok: false, error: 'Calendar worker exited.' }));
-  try { child.send({ url }); } catch (e) { finish({ ok: false, error: 'Could not reach the calendar worker.' }); }
+  runWorker(path.join(__dirname, 'cal-worker.js'), { url },
+    { timeoutMs: timeoutMs || 20000, name: 'calendar', timeoutError: 'Timed out loading the calendar.' }, cb);
 }
 
 // Event titles come from someone else's calendar, so unlike reminders (80 chars)
