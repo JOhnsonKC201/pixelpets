@@ -1,7 +1,7 @@
 // Small status indicators + hearts drawn over the cat (thinking dots, working
-// spinner, "done!" burst, love heart). Classic <script> loaded before renderer.js,
-// sharing the overlay global scope; draws on the shared canvas context `ctx`.
-// Extracted from renderer.js to keep that file focused on the main loop.
+// spinner, "done!" burst, love heart). Classic <script> loaded before the overlay,
+// sharing its global scope; draws on the shared canvas context `ctx`.
+// Kept out of the overlay so the main loop stays about the main loop.
 /* exported drawThinkBubble, drawWorkBubble, drawDoneSpark, drawHeart, drawSparkle, drawGuitar, drawNote */
 
 // Thinking indicator: three dots that pulse near the head (AI agent working).

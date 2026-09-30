@@ -78,7 +78,7 @@ const MOVES = [
   { id: 'climb', state: 'paper', dir: 'up', reach: 19, scale: 2.9, label: 'CLIMBS WHEN YOU SCROLL', warmup: 30 },
   { id: 'hunt', state: 'hunt', reach: 173, scale: 7, label: 'STALKS YOUR CURSOR' },
   // No `state` on purpose, and the only move that films at `every: 3`.
-  // `--state=mochi` is a HELD pose (renderer.js pins the head and feet springs), so
+  // `--state=mochi` is a HELD pose (the overlay pins the head and feet springs), so
   // filming it gives a frozen cat in the middle of nine moving ones. `--drag` runs a
   // real drag instead, and a real drag is a spring sim, which is unstable if the page
   // is stepped at 20 fps. Render at 60 and keep every third frame. See DRAG_DRIVER
@@ -322,7 +322,7 @@ function clean() {
 const STEPS = { backdrop: buildBackdrop, cards: buildCards, capture, sheet, encode, clean,
   all: () => { buildBackdrop(); capture(); sheet(); encode(); } };
 
-// Exported so tests/reel-spec.test.js can check the move table against renderer.js
+// Exported so tests/reel-spec.test.js can check the move table against the overlay
 // without running ffmpeg or Electron. Guarded so a require() does not start a build.
 module.exports = { MOVES, COAT, W, H, FPS, HOLD, MOVE_FRAMES, TITLE_FRAMES, END_FRAMES,
   FEET, FLOOR, LABEL_BOTTOM, PET_CLEARANCE, frameFor };

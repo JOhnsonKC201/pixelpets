@@ -82,7 +82,7 @@ function encodePng(rgba, w, h) {
 
 // --all: every ACTIVITY, not just the poses this script can compose directly.
 //
-// The dog's composers live in a module, but the cat's live inside renderer.js,
+// The dog's composers live in a module, but the cat's live inside the overlay,
 // which is Electron-coupled and cannot be required. Rather than move working code
 // out of the renderer, this reaches the composers where they are: scripts/overlay-vm.js
 // loads the whole overlay script stack in a vm with a mocked browser, and the pose

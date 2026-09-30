@@ -23,7 +23,7 @@ The [development guide](docs/development.md) covers the day-to-day commands. The
 ## Before you open a PR
 
 1. **Tests green:** `npm test` (CI runs the same thing).
-2. **Visual changes need visual proof.** If you touch `src/renderer.js`, `src/cat-sprite.js`, or anything that draws, run `npm run poses:cat` before and after. For pure refactors the sha256 of the sheet should not change; for intentional changes, include a before/after crop in the PR.
+2. **Visual changes need visual proof.** If you touch `src/overlay/`, `src/cat-sprite.js`, or anything that draws, run `npm run poses:cat` before and after. For pure refactors the sha256 of the sheet should not change; for intentional changes, include a before/after crop in the PR.
 3. **Keep the site cat in sync.** `site/cat-sprite.js` must stay a byte-identical copy of `src/cat-sprite.js` (a test enforces this). If you change the sprite, re-copy it: `node -e "fs.copyFileSync('src/cat-sprite.js','site/cat-sprite.js')"`.
 4. **Respect line endings.** Files in this repo are a mix of LF and CRLF for historical reasons. Do not normalize files you are not otherwise changing; keep each file's existing endings.
 5. **Commit style:** conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`), imperative mood, like the existing history.

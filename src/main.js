@@ -98,7 +98,7 @@ const noteArg = (process.argv.find((a) => a.startsWith('--note=')) || '').split(
 const SHOT = process.argv.includes('--shot');
 const SHEET = process.argv.includes('--sheet');   // contact-sheet QA capture
 const REEL = process.argv.includes('--reel');     // marketing reel: a run of frames of one forced pose
-// The preview canvas renderer.js sizes itself to in SHOT mode. Kept here so the
+// The preview canvas the overlay sizes itself to in SHOT mode. Kept here so the
 // preview WINDOW can be built to cover it; the two must not drift (see createWindow).
 const SHOT_CANVAS = { w: 260, h: 320 };
 // `--at=<ms>` sets how long to let the scene animate before the --shot capture, so
@@ -125,7 +125,7 @@ const reel = {
   timeout: reelNum('timeout', 60000),
   drag: process.argv.includes('--drag'),
   // Render at `every` x fps and keep one paint in `every`. This is not smoothing:
-  // renderer.js integrates its springs with `step = min(2.5, dt / 16)`, so at 20 fps
+  // the overlay integrates its springs with `step = min(2.5, dt / 16)`, so at 20 fps
   // step pins to 2.5 and the head/feet spring gain goes above 1. The sim DIVERGES -
   // the drag stretch runs away until the cat is a one-pixel vertical line somewhere
   // off frame. Driving the page at 60 fps puts step back near 1 and the same drag is
@@ -133,7 +133,7 @@ const reel = {
   every: Math.max(1, reelNum('every', 1)),
 };
 // A reel run must not touch the pet the user is actually running. The overlay
-// persists `pos` to localStorage (persistPos, renderer.js), localStorage lives in
+// persists `pos` to localStorage (persistPos, the overlay), localStorage lives in
 // userData, and a capture forces the pet to the preview position - so filming with
 // the default userData quietly moves the real pet to the corner of the preview
 // canvas. Give the capture its own throwaway profile. Must happen before ready.
@@ -218,7 +218,7 @@ function hardenNav(w) {
 // the cat is genuinely being dragged.
 //
 // So: no forced state, and drive the two variables a real drag drives. Both are
-// top-level `let`s in renderer.js, which classic scripts put in the global lexical
+// top-level `let`s in the overlay, which classic scripts put in the global lexical
 // environment, so later global code reaches them by name. tests/overlay-vm-backed
 // tests already lean on this, and tests/reel-spec.test.js pins the names.
 // Timings are deliberate. While `grabbing`, the feet spring chases the head slowly
@@ -279,7 +279,7 @@ const DRAG_DRIVER = `(() => {
 //   - The wallpaper goes in as a data: URI. index.html's CSP is
 //     `img-src 'self' data:`, so a file:// url is blocked outright.
 // It keeps `shot=1`: that is what pins the canvas at a fixed 260x320 regardless of
-// window size (renderer.js sizes it there and skips the resize listener), fixes the
+// window size (the overlay sizes it there and skips the resize listener), fixes the
 // pet's position, and gates every prop flag including --bfly.
 function createReelWindow() {
   if (!reel.out || !reel.bg) { console.error('[reel] --out=<dir> and --bg=<jpeg> are both required'); return app.quit(); }
@@ -352,7 +352,7 @@ function createWindow() {
   if (SHOT || SHEET) {
     // Small focusable window for previews (no overlay/click-through). The sheet
     // window stays hidden - it exports its canvas via IPC, not a screen capture.
-    // The width MUST cover the preview canvas that renderer.js's SHOT branch sizes
+    // The width MUST cover the preview canvas that the overlay's SHOT branch sizes
     // (SHOT_CANVAS below): it was 20px narrower for a long time, so a --shot capture
     // quietly cropped anything that reached the right-hand side of the canvas and
     // the loss looked like a rendering bug rather than a window that was too small.
@@ -389,7 +389,7 @@ function createWindow() {
   if (dirArg) params.push(`dir=${dirArg}`);
   if (speciesArg) params.push(`species=${speciesArg}`);
   // startsWith, not includes: every other preview flag takes a --flag=value form,
-  // so `--treat=1` (the spelling renderer.js's own comment documents) was silently
+  // so `--treat=1` (the spelling the overlay's own comment documents) was silently
   // ignored here and the QA shot came back with no fish. Both spellings work now.
   const hasFlag = (name) => process.argv.some((a) => a === `--${name}` || a.startsWith(`--${name}=`));
   if (hasFlag('bfly')) params.push('bfly=1');    // force the butterfly visitor (QA shots)

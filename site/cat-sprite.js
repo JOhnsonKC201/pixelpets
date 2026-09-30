@@ -2,9 +2,9 @@
 // grid primitives, coat palettes, and colour helpers. Loaded as a classic script
 // by the overlay (index.html) and the settings window (settings.html) - its
 // top-level const/function declarations live in the shared global lexical scope,
-// so renderer.js / cat-preview.js use them as bare identifiers - and required as a
+// so the overlay / cat-preview.js use them as bare identifiers - and required as a
 // CommonJS module by scripts/pet-sheet.js (Node). Pose-specific composers
-// (hunt/type/sleep) and the animated drawCat stay in renderer.js.
+// (hunt/type/sleep) and the animated drawCat stay in the overlay.
 const CELL = 4;   // px per sprite cell - sets the cat's overall size (was 5; 4 ≈ 20% smaller)
 
 // ---- sprite builder (writes to current target G/GC/GR) ----------------------

@@ -2,7 +2,7 @@
 // {name} {time} {date} {count} substitution plus the "tidy stray whitespace
 // before punctuation" cleanup (so "Hi {name}!" with no name reads "Hi!").
 //
-// Loaded as a classic <script> by the overlay (index.html) so renderer.js can call
+// Loaded as a classic <script> by index.html so the overlay can call
 // fillPlaceholders() as a bare global, and required as a CommonJS module by main.js
 // and the tests. In a browser classic script `module` is undefined, so the export
 // at the bottom is skipped and the declaration stays in the shared global scope.

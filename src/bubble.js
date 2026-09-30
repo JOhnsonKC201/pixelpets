@@ -1,6 +1,6 @@
 // Speech-bubble text layout: word wrapping, line capping and screen-edge clamping.
 //
-// This lives outside renderer.js because it is the one part of the bubble that is
+// This lives outside the overlay because it is the one part of the bubble that is
 // pure arithmetic, and it was the part that was wrong. The old drawBubble capped
 // the PANEL at 260px but still handed the whole string to fillText, so anything
 // past ~44 characters was painted straight onto the wallpaper on both sides of the
@@ -12,7 +12,7 @@
 // Kept measure-injected (rather than reaching for a canvas) so the wrapping can be
 // unit-tested with a deterministic width function and no browser.
 //
-// Loaded as a classic <script> by the overlay (index.html) so renderer.js can call
+// Loaded as a classic <script> by index.html so the overlay can call
 // these as bare globals, and required as a CommonJS module by the tests. In a
 // browser classic script `module` is undefined, so the export at the bottom is
 // skipped and the declarations stay in the shared global scope.
@@ -129,7 +129,7 @@ function layoutBubble(o) {
   // `lines`/`widest` may be supplied pre-computed. The wrap is the only costly part
   // here (a measure per word) and it depends on nothing that changes between frames,
   // whereas a pinned note is re-drawn on every frame for as long as it is pinned -
-  // so the caller is allowed to cache it. See wrapFor() in renderer.js.
+  // so the caller is allowed to cache it. See wrapFor() in the overlay.
   const lines = o.lines || wrapBubbleText(o.text, measure, innerW, o.maxLines || BUBBLE_MAX_LINES);
   let widest = o.widest;
   if (widest == null) { widest = 0; for (const l of lines) widest = Math.max(widest, measure(l)); }

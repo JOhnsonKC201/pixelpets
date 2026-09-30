@@ -10,7 +10,7 @@
  *   - idle   -> auto-cycles a showcase reel: hunt / stretch / zoomies / groom / loaf
  * A caption callback names the live behaviour for the page to display.
  *
- * The animated paint functions are ported from src/renderer.js (pure canvas, no
+ * The animated paint functions are ported from src/overlay/ (pure canvas, no
  * Electron). Depends on cat-sprite.js globals: CELL, BODY, buildSprite, composeSit,
  * composeLoaf, PATTERNS, BUILDS, PATTERN_BUILD, TABBY, toRgb, rgbStr, shadeStr, HALO,
  * plus the grid primitives ellipse/triangle/setCell/G used by the composers below.
@@ -20,7 +20,7 @@
 
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
-  // ---- pose composers ported from renderer.js (use cat-sprite.js grid globals) --
+  // ---- pose composers ported from the overlay (use cat-sprite.js grid globals) --
 
   function composeHunt() {
     const CX = 15;
@@ -567,7 +567,7 @@
       }
     }
     // which body zone is the cursor over? (canvas-CSS-px) - head/ear/cheek/belly/tailbase,
-    // mirroring the desktop pet box in src/renderer.js
+    // mirroring the desktop pet box in src/overlay/
     function zoneAt(cx, cy) {
       if (!rect) return null;
       const left = footX - (SW / 2) * scale, top = footY - SH * scale, w = SW * scale, h = SH * scale;

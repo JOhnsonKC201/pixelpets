@@ -2,9 +2,9 @@
 
 > **Status: ON, for the coats that have art.**
 >
-> `PAINTED_CLIMB = true` in `src/renderer.js`. A coat with its own folder here
+> `PAINTED_CLIMB = true` in `src/overlay/climb.js`. A coat with its own folder here
 > climbs the rope. Every coat WITHOUT one, and every dog, rears up and swipes at a
-> leaf blowing past instead (`swatLeaf` in renderer.js).
+> leaf blowing past instead (`swatLeaf` in the overlay).
 >
 > Painted, so climbing: `mackerel-tabby` (the shipped default), `orange-tabby`,
 > `tuxedo`, and `tortoiseshell`.
@@ -67,7 +67,7 @@ hyphens: `Orange Tabby` → `orange-tabby`, `Tuxedo` → `tuxedo`, `Calico` → 
 
 Each frame is a full painted scene (cat + rope + ball) on a transparent background.
 Alignment/scale is controlled by `CLIMB_SCENE_H` / `CLIMB_ANCHOR_X` / `CLIMB_DROP`
-in `src/renderer.js`.
+in `src/overlay/climb.js`.
 
 ## QA after embedding
 
