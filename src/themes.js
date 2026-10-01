@@ -40,24 +40,33 @@ function clean(list) {
     .slice(0, MAX_THEMES);
 }
 
-function load() {
+function load(file = filePath()) {
   let raw;
-  try { raw = fs.readFileSync(filePath(), 'utf8').replace(/^﻿/, ''); }
+  try { raw = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''); }
   catch (e) { return []; }
   try {
     const data = JSON.parse(raw);
     return clean(Array.isArray(data) ? data : (data && data.themes));
-  } catch (e) { return []; }
+  } catch (e) {
+    // Corrupt: start empty, but keep the file. The next add or delete writes a
+    // new list over it, and every coat the user designed is in this one.
+    // Named by content, not time: load() does not rewrite the file, so the
+    // same broken file is seen on every launch and must be copied only once.
+    try {
+      const tag = require('crypto').createHash('sha256').update(raw).digest('hex').slice(0, 12);
+      const dest = `${file}.corrupt-${tag}`;
+      if (!fs.existsSync(dest)) fs.copyFileSync(file, dest);
+    } catch (e2) { /* best effort */ }
+    return [];
+  }
 }
-
-function save(list) {
+function save(list, file = filePath()) {
   const out = clean(list);
-  const fp = filePath();
   try {
-    fs.mkdirSync(path.dirname(fp), { recursive: true });
-    const tmp = `${fp}.tmp`;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const tmp = `${file}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify({ themes: out }, null, 2));
-    fs.renameSync(tmp, fp);
+    fs.renameSync(tmp, file);
   } catch (e) { /* keep in-memory value even if disk write fails */ }
   return out;
 }

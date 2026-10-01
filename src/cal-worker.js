@@ -36,6 +36,9 @@ function isBlockedIp(ip) {
     const a = ip.toLowerCase();
     if (a === '::1' || a === '::') return true;
     if (a.startsWith('::ffff:')) return isBlockedIp(a.slice(7));    // IPv4-mapped
+    // Other forms that carry an IPv4 address inside: IPv4-compatible (::a.b.c.d),
+    // NAT64 (64:ff9b::/96) and 6to4 (2002::/16). No public calendar needs them.
+    if (a.startsWith('::') || a.startsWith('64:ff9b:') || a.startsWith('2002:')) return true;
     if (a.startsWith('fe80') || a.startsWith('fc') || a.startsWith('fd')) return true;
     return false;
   }
@@ -108,12 +111,13 @@ function durationOf(ev) {
 }
 
 // is require()'d (e.g. from a unit test) just expose the pure functions below.
-if (require.main === module) {
-process.once('message', async (msg) => {
-  const send = (m) => { try { process.send(m); } catch (e) { /* parent gone */ } };
+if (require.main === module || process.parentPort) {
+const { onJob, reply, exitSoon } = require('./worker-port');
+onJob(async (msg) => {
+  const send = reply;
   try {
     const url = String((msg && msg.url) || '');
-    if (!url) { send({ ok: false, error: 'No calendar URL.' }); process.exit(0); return; }
+    if (!url) { send({ ok: false, error: 'No calendar URL.' }); exitSoon(); return; }
     const ical = require('node-ical');
     const text = await fetchIcsSafely(url);            // SSRF-guarded fetch (scheme + IP allowlist, size cap, redirects re-checked)
     const data = await ical.async.parseICS(text);
@@ -148,7 +152,7 @@ process.once('message', async (msg) => {
   } catch (e) {
     send({ ok: false, error: classify(e) });
   } finally {
-    process.exit(0);
+    exitSoon();
   }
 });
 

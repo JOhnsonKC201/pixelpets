@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, dialog, Notification, powerMonitor } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, dialog, Notification, powerMonitor, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -30,6 +30,9 @@ const { makeAutostart } = require('./main/autostart');
 const { keepOnTop } = require('./main/keep-on-top');
 const { floorGeometry } = require('./main/geometry');
 const { onRendererGone } = require('./main/crash-reload');
+const { installAppGuards } = require('./main/app-guards');
+const { startSoak } = require('./main/soak');
+const { captureShot } = require('./main/shot');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -218,14 +221,7 @@ function createWindow() {
   if (!SHOT && !SHEET) startInputHook();
 
   if (SHOT) {
-    win.webContents.on('did-finish-load', () => {
-      setTimeout(async () => {
-        const img = await win.webContents.capturePage();
-        fs.writeFileSync(path.join(__dirname, '..', '_render.png'), img.toPNG());
-        console.log('[captured _render.png]');
-        app.quit();
-      }, shotAtMs);
-    });
+    captureShot({ app, win, delayMs: shotAtMs, out: cli.shotOut || path.join(APP_DIR, '_render.png'), fs });
     return;
   }
 
@@ -694,7 +690,10 @@ onSecure('quit', () => app.quit());
 function getPetAnchor() {
   return { x: origin.x + hot.x, y: origin.y + hot.y, w: hot.w, h: hot.h };
 }
-onSecure('sheet:image', (_e, dataUrl) => {
+// The contact sheet's export: write the PNG into the repo and quit. It only
+// exists in --sheet mode; in a normal run nothing may make main write files
+// into the app folder or quit on the overlay's say-so.
+if (SHEET) onSecure('sheet:image', (_e, dataUrl) => {
   try {
     const b64 = String(dataUrl || '').replace(/^data:image\/png;base64,/, '');
     const dir = path.join(APP_DIR, 'previews');
@@ -738,6 +737,9 @@ app.whenReady().then(() => {
     process.on('uncaughtException', (e) => { log.error('uncaught exception', e); trippedOnce(); });
     process.on('unhandledRejection', (e) => { log.warn('unhandled promise rejection', e instanceof Error ? e : String(e)); });
   }
+  // Before any window exists: no web permissions, and no navigation, pop-ups or
+  // <webview> in any page (src/main/app-guards.js).
+  installAppGuards({ app, session, log: { warn: (...a) => log.warn(...a) } });
   themesCache = themes.load();
   if (REEL) return createReelWindow(cli);   // capture-only: no tray, no hooks, no scheduler
   if (!SHOT && !SHEET) {
@@ -753,6 +755,7 @@ app.whenReady().then(() => {
   createWindow();
   if (!SHOT && !SHEET) {
     createTray(); startScheduler(); mail.init(notify, () => cfg); mail.sync(cfg); cal.init(notify, () => cfg); cal.sync(cfg);
+    if (cli.soakMinutes) startSoak({ app, minutes: cli.soakMinutes, print: (line) => { log.info(line); if (app.isPackaged) console.log(line); } });
     tools.init({
       notify, getCfg: () => cfg, persist: persistAndBroadcast, sendAction, triggerBreak, openSettings,
       rebuildTray: rebuildTrayMenu, hardenNav, onSecure, handleSecure, getPetAnchor,

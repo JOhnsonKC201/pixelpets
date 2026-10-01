@@ -3,6 +3,7 @@
 // exits. Runs in its own process so a hung socket or library crash can never
 // freeze the overlay. The password is used in-memory only - never logged.
 const { ImapFlow } = require('imapflow');
+const { onJob, reply, exitSoon } = require('./worker-port');
 
 function classify(e) {
   const code = String((e && e.code) || '').toLowerCase();
@@ -22,8 +23,8 @@ function classify(e) {
   return 'Could not connect to the mailbox.';
 }
 
-process.once('message', async (creds) => {
-  const send = (m) => { try { process.send(m); } catch (e) { /* parent gone */ } };
+onJob(async (creds) => {
+  const send = reply;
   let client = null;
   try {
     client = new ImapFlow({
@@ -72,7 +73,7 @@ process.once('message', async (creds) => {
     send({ ok: false, error: classify(e) });
   } finally {
     try { if (client) await client.logout(); } catch (e) { /* ignore */ }
-    process.exit(0);
+    exitSoon();
   }
 });
 

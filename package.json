@@ -30,6 +30,7 @@
     "ipad": "node tools/ipad-terminal/server.js",
     "ipad:lan": "node tools/ipad-terminal/server.js --lan",
     "test:boot": "node scripts/bootcheck.js",
+    "soak": "electron . --soak=60",
     "check:hook": "electron scripts/hook-check.js",
     "demo": "node scripts/make-demo-gif.js mp4",
     "demo:hero": "node scripts/make-demo-gif.js hero mp4",
@@ -59,6 +60,17 @@
     "productName": "pixelpets",
     "npmRebuild": false,
     "afterPack": "scripts/adhoc-sign.js",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableCookieEncryption": true,
+      "onlyLoadAppFromAsar": true,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "loadBrowserProcessSpecificV8Snapshot": false,
+      "grantFileProtocolExtraPrivileges": true,
+      "resetAdHocDarwinSignature": true
+    },
     "directories": {
       "output": "dist"
     },

@@ -1,7 +1,9 @@
 // Settings store (main process). Owns settings.json in the per-user app data dir
 // and is the single source of truth for name / coat / break-timer / sound / hunt /
-// reminders. Reads are tolerant (missing or corrupt file -> DEFAULTS); writes are
-// atomic (tmp + rename) so a crash mid-write can't leave a half-written file.
+// reminders. Reads are tolerant (missing or corrupt file -> DEFAULTS, with a copy of
+// the corrupt file kept); writes are atomic (tmp + rename) so a crash mid-write
+// can't leave a half-written file. The file carries a schemaVersion so a newer
+// format is upgraded step by step, and an older build never silently overwrites it.
 const { app } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -11,6 +13,10 @@ const { isSpecies, coatsFor, defaultCoatIndex } = require('./pets');
 const { MAX_THEMES } = require('./themes');
 const { normalizeShortcuts } = require('./tools/shortcuts');
 const { normalizeTodos } = require('./tools/todos');
+
+// The settings file format. Bump it when a change needs more than normalize()
+// filling in defaults, and add the step that upgrades the previous version.
+const SCHEMA_VERSION = 1;
 // A cat's coat index addresses ONE run of numbers: the built-in coats first, then
 // the user's custom coats, which is the order both pickers build (tray submenu in
 // main.js, dropdown in settings-renderer.js). Clamping at the last built-in coat
@@ -105,6 +111,7 @@ function normalize(cfg) {
   const seen = new Set();
   const reminders = Array.isArray(c.reminders) ? c.reminders : [];
   return {
+    schemaVersion: SCHEMA_VERSION,
     name: String(c.name == null ? '' : c.name).trim().slice(0, 24),
     species: isSpecies(c.species) ? c.species : 'cat',
     pattern: clampInt(c.pattern, 0, MAX_PATTERN, DEFAULT_PATTERN),
@@ -227,43 +234,69 @@ function coatAfterThemeRemoval(pattern, removedThemeIndex, builtinCount = PATTER
   return pattern === at ? DEFAULT_PATTERN : pattern - 1;
 }
 
-// Fill any missing top-level key from DEFAULTS (forward-compatible loads).
+// MIGRATIONS[n] turns a version-n file into version n+1. Version 0 is every
+// file written before versioning; normalize() already reads those correctly.
+const MIGRATIONS = [
+  (c) => c,
+];
+
+const versionOf = (cfg) => (Number.isInteger(cfg && cfg.schemaVersion) && cfg.schemaVersion > 0 ? cfg.schemaVersion : 0);
+
+// Fill any missing top-level key from DEFAULTS (forward-compatible loads), then
+// upgrade an older file one version at a time.
 function migrate(cfg) {
-  return { ...DEFAULTS, ...(cfg && typeof cfg === 'object' ? cfg : {}) };
+  let c = { ...DEFAULTS, ...(cfg && typeof cfg === 'object' ? cfg : {}) };
+  for (let v = versionOf(cfg); v < SCHEMA_VERSION; v++) c = MIGRATIONS[v](c);
+  return c;
 }
 
-function load() {
+// Keep a copy next to the settings file. Best effort: a failure here must not
+// stop the app from starting.
+function keepCopy(file, suffix) {
+  const dest = `${file}.${suffix}`;
+  try { if (!fs.existsSync(dest)) fs.copyFileSync(file, dest); } catch (e) { /* best effort */ }
+  return dest;
+}
+
+function load(file = filePath()) {
   let raw;
   try {
-    raw = fs.readFileSync(filePath(), 'utf8').replace(/^﻿/, ''); // tolerate editor BOM
+    raw = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''); // tolerate editor BOM
   } catch (e) {
     // Missing file -> first run, write defaults. Any OTHER read error (EBUSY/EACCES
     // from an AV scanner or editor lock) is transient: return defaults but DON'T
     // overwrite the on-disk file, so real settings are never destroyed.
     const fresh = normalize(DEFAULTS);
-    if (e && e.code === 'ENOENT') { try { save(fresh); } catch (e2) { /* best effort */ } }
+    if (e && e.code === 'ENOENT') { try { save(fresh, file); } catch (e2) { /* best effort */ } }
     return fresh;
   }
+  let parsed;
   try {
-    return normalize(migrate(JSON.parse(raw)));
+    parsed = JSON.parse(raw);
   } catch (e) {
-    // The file exists but is corrupt JSON -> safe to replace with defaults.
+    // Corrupt JSON: start from defaults, but keep the broken file. It is all
+    // the user's settings with one bad byte in it, and worth a hand repair.
+    keepCopy(file, `corrupt-${Date.now()}`);
     const fresh = normalize(DEFAULTS);
-    try { save(fresh); } catch (e2) { /* best effort */ }
+    try { save(fresh, file); } catch (e2) { /* best effort */ }
     return fresh;
   }
+  // Written by a newer pixelpets (a rollback, or two versions side by side).
+  // This build does not know the newer fields, and the next save would drop
+  // them, so keep the newer file before that can happen.
+  if (versionOf(parsed) > SCHEMA_VERSION) keepCopy(file, `v${versionOf(parsed)}.bak`);
+  return normalize(migrate(parsed));
 }
 
-function save(cfg) {
+function save(cfg, file = filePath()) {
   const clean = normalize(cfg);
-  const fp = filePath();
   try {
-    fs.mkdirSync(path.dirname(fp), { recursive: true });
-    const tmp = `${fp}.tmp`;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const tmp = `${file}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(clean, null, 2));
-    fs.renameSync(tmp, fp);
+    fs.renameSync(tmp, file);
   } catch (e) { /* keep the in-memory value even if disk write fails */ }
   return clean;
 }
 
-module.exports = { DEFAULTS, HOTKEYS, SEARCH_ENGINES, load, save, normalize, migrate, makeId, coatAfterThemeRemoval, filePath };
+module.exports = { DEFAULTS, HOTKEYS, SEARCH_ENGINES, SCHEMA_VERSION, load, save, normalize, migrate, makeId, coatAfterThemeRemoval, filePath };
