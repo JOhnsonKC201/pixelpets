@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, dialog, Notification, powerMonitor, session } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, dialog, Notification, powerMonitor, session, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -33,6 +33,8 @@ const { onRendererGone } = require('./main/crash-reload');
 const { installAppGuards } = require('./main/app-guards');
 const { startSoak } = require('./main/soak');
 const { captureShot } = require('./main/shot');
+const { createSettingsWindow } = require('./main/settings-window');
+const { makeUpdater } = require('./main/updater');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -51,6 +53,7 @@ let tipTimers = [];                                    // one-time first-run hin
 let onTop = null;                                      // re-asserts always-on-top (src/main/keep-on-top.js)
 let settingArea = false, areaTimer = null;             // "set play area (drag)" mode
 let bridge = null;                                     // the agent/notify file watcher (src/main/bridge.js)
+let updater = null;                                    // opt-in update checks (src/main/updater.js)
 let scheduleTimer;                                     // break-timer + reminder clock
 let breakAnchor = 0;                                   // ms timestamp the break countdown started
 let lastMinuteKey = '';                                // 'YYYY-M-D-HH:MM' for reminder dedupe
@@ -318,6 +321,7 @@ function persistAndBroadcast(next) {
   tools.onConfig(cfg);   // hotkey + clipboard history follow their settings
   applyConfigToOverlay();
   applyFocus();   // work mode / quiet hours / focus toggles all change whether we are "busy"
+  if (updater) updater.sync();   // the updates switch or channel may have changed
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('config', cfg);
   rebuildTrayMenu();
 }
@@ -357,7 +361,7 @@ function rebuildTrayMenu() {
     cfg, getCfg: () => cfg, species: sp, coatNames,
     speciesList: SPECIES_IDS.map((id) => ({ id, emoji: SPECIES[id].emoji, label: SPECIES[id].label })),
     recent: notifyHistory.recent(10), relTime,
-    onBattery, lowPowerOn: effectiveLowPower(), toolItems: tools.trayItems(),
+    onBattery, lowPowerOn: effectiveLowPower(), toolItems: [...(updater ? updater.trayItems() : []), ...tools.trayItems()],
   }, {
     persist: persistAndBroadcast, openSettings, triggerBreak, giveTreat, snooze: snoozeLast, sendMood, startSetArea, sendAction,
     renotify: (n) => notify(n.message, { source: 'recap', recap: true, dedupeMs: 0, os: false }),
@@ -370,22 +374,7 @@ function rebuildTrayMenu() {
 // ---- settings window -------------------------------------------------------
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); return; }
-  settingsWin = new BrowserWindow({
-    // Width is pinned (the layout is designed for one column at 400), but height is
-    // now draggable: the tallest section still overflows 640px on a short screen and
-    // a fixed window left no way out of that but scrolling.
-    width: 400, height: 640, minWidth: 400, maxWidth: 400, minHeight: 420,
-    resizable: true, fullscreenable: false, maximizable: false,
-    title: 'pixelpets settings', skipTaskbar: false, alwaysOnTop: true,
-    icon: path.join(__dirname, '..', 'assets', 'icon.png'),   // taskbar icon for the settings window
-    show: false, backgroundColor: '#191b22',   // dark from the first paint - no white flash
-    webPreferences: { preload: path.join(__dirname, 'settings-preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
-  });
-  hardenNav(settingsWin);
-  settingsWin.setMenuBarVisibility(false);
-  wireMacEditKeys(settingsWin, () => settingsWin.close());   // no menu bar, so Cmd+V has to be wired by hand (see mac-edit-keys.js)
-  settingsWin.once('ready-to-show', () => { if (settingsWin && !settingsWin.isDestroyed()) settingsWin.show(); });
-  settingsWin.loadFile(path.join(__dirname, 'settings.html'));
+  settingsWin = createSettingsWindow();   // src/main/settings-window.js
   settingsWin.on('closed', () => { settingsWin = null; });
 }
 
@@ -646,6 +635,7 @@ function cleanup() {
   if (hookRetry) { clearInterval(hookRetry); hookRetry = null; }
   if (scheduleTimer) clearInterval(scheduleTimer);
   pomodoro.stop();
+  if (updater) updater.stop();
   notifyHistory.flush();   // write any pending history now so it can't fire mid-teardown
   if (bridge) bridge.stop();
   if (hookStarted) { try { require('uiohook-napi').uIOhook.stop(); } catch (e) { /* ignore */ } }
@@ -714,6 +704,7 @@ registerSettingsIpc({
   getDialogParent: () => settingsWin || win,
   getSettingsWin: () => (settingsWin && !settingsWin.isDestroyed() ? settingsWin : null),
   openSettings, openReport: () => { if (reportWin) reportWin.open(); }, sendAction, notify,
+  appVersion: () => app.getVersion(), checkUpdates: () => (updater ? updater.checkNow() : { status: 'off' }),
 });
 
 app.whenReady().then(() => {
@@ -754,7 +745,11 @@ app.whenReady().then(() => {
   }
   createWindow();
   if (!SHOT && !SHEET) {
-    createTray(); startScheduler(); mail.init(notify, () => cfg); mail.sync(cfg); cal.init(notify, () => cfg); cal.sync(cfg);
+    updater = makeUpdater({
+      getUpdater: () => require('electron-updater').autoUpdater, isPackaged: app.isPackaged, platform: process.platform,
+      getCfg: () => cfg, notify, log, openExternal: (url) => shell.openExternal(url), onChange: () => rebuildTrayMenu(),
+    });
+    createTray(); updater.sync(); startScheduler(); mail.init(notify, () => cfg); mail.sync(cfg); cal.init(notify, () => cfg); cal.sync(cfg);
     if (cli.soakMinutes) startSoak({ app, minutes: cli.soakMinutes, print: (line) => { log.info(line); if (app.isPackaged) console.log(line); } });
     tools.init({
       notify, getCfg: () => cfg, persist: persistAndBroadcast, sendAction, triggerBreak, openSettings,

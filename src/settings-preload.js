@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('settings', {
   emailSetPassword: (pw) => ipcRenderer.invoke('email:setPassword', pw),
   emailTest: (pw) => ipcRenderer.invoke('email:test', pw),
   calendarTest: () => ipcRenderer.invoke('calendar:test'),
+  appVersion: () => ipcRenderer.invoke('app:version'),
+  checkUpdates: () => ipcRenderer.invoke('updates:check-now'),
   action: (id) => ipcRenderer.send('settings:action', id),
   pickShortcut: (kind) => ipcRenderer.invoke('tools:pickShortcut', kind),
   openNotes: () => ipcRenderer.send('tools:openNotes'),
