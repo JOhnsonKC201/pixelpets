@@ -17,25 +17,23 @@ const { wireMacEditKeys } = require('./mac-edit-keys');
 const themes = require('./themes');
 const { PATTERN_NAMES } = require('./patterns');
 const { SPECIES, SPECIES_IDS, speciesOf, coatsFor, defaultCoatIndex } = require('./pets');
+const { parseCli, SHOT_CANVAS } = require('./main/cli');
+const { hardenNav } = require('./main/harden-nav');
+const { createReelWindow } = require('./main/reel-window');
+const { buildTrayTemplate } = require('./main/tray-menu');
+const { makeNotifyHistory, relTime } = require('./main/notify-history');
+const { watchBridge } = require('./main/bridge');
+const { makeSecureIpc } = require('./main/secure-ipc');
+const { registerSettingsIpc } = require('./main/settings-ipc');
+const { makePomodoro } = require('./main/pomodoro');
+const { makeAutostart } = require('./main/autostart');
+const { keepOnTop } = require('./main/keep-on-top');
+const { floorGeometry } = require('./main/geometry');
+const { onRendererGone } = require('./main/crash-reload');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-
-// The two bridge filenames below keep the old pixelcat name on purpose. They are a
-// published contract, not branding: users have already pasted these paths into agent
-// hooks and CI scripts, and `scripts/install-hook.js` printed them into config files
-// we cannot reach in to edit. Renaming either one would break every installation that
-// exists, silently, because the writer would still succeed against a file nobody
-// reads. Each name is spelled out again in the writer (agent-hook.js, notify.js);
-// tests/bridge-paths.test.js fails if the two sides ever drift apart.
-//
-// AI-agent status file: hooks (e.g. Claude Code) write 'thinking' | 'done' here
-// and the cat reacts. See README "AI agent reactions".
-const AGENT_FILE = path.join(os.tmpdir(), 'pixelcat-agent.state');
-// Generic message bridge: any external tool appends JSON lines here (see
-// scripts/notify.js) and the cat shows a bubble + toast. README "Notify the cat".
-const NOTIFY_FILE = path.join(os.tmpdir(), 'pixelcat-notify.jsonl');
 
 let win;                                               // the overlay (the cat)
 let settingsWin = null;                                // settings window (when open)
@@ -44,15 +42,12 @@ let cfg = null;                                        // current settings (main
 let themesCache = [];                                  // user-defined custom coats (themes.json)
 // Renderer crash-loop guard. Module scope so the count survives the reload it
 // triggers; see the render-process-gone handler in createWindow().
-let renderCrashes = 0, lastRenderCrashAt = 0;
-const RELOAD_MAX = 5;                                  // consecutive reloads before giving up
-const RELOAD_RESET_MS = 60000;                         // uptime that counts as "recovered"
+let crashState = { crashes: 0, lastAt: 0 };            // overlay crash loop (src/main/crash-reload.js)
 let cursorTimer;
 let tipTimers = [];                                    // one-time first-run hint timers
-let topTimer;                                          // re-asserts always-on-top
+let onTop = null;                                      // re-asserts always-on-top (src/main/keep-on-top.js)
 let settingArea = false, areaTimer = null;             // "set play area (drag)" mode
-let agentTimer;
-let agentWatcher;
+let bridge = null;                                     // the agent/notify file watcher (src/main/bridge.js)
 let scheduleTimer;                                     // break-timer + reminder clock
 let breakAnchor = 0;                                   // ms timestamp the break countdown started
 let lastMinuteKey = '';                                // 'YYYY-M-D-HH:MM' for reminder dedupe
@@ -87,53 +82,13 @@ function trippedOnce() {
   } catch (e) { /* the notifier itself may be what broke */ }
 }
 
-// Optional `--state=` / `--pattern=` force a pose/coat for --shot previews.
-const stateArg = (process.argv.find((a) => a.startsWith('--state=')) || '').split('=')[1] || '';
-const patternArg = (process.argv.find((a) => a.startsWith('--pattern=')) || '').split('=')[1] || '';
-const dirArg = (process.argv.find((a) => a.startsWith('--dir=')) || '').split('=')[1] || '';   // force climb direction (up|down) for --shot previews
-const speciesArg = (process.argv.find((a) => a.startsWith('--species=')) || '').split('=')[1] || '';   // force cat|dog for --shot previews (the renderer already reads ?species=)
-// `--note=<text>` pins a speech bubble open for a --shot capture, so bubble wrapping
-// and edge clamping can be eyeballed against a real font instead of only unit-tested.
-const noteArg = (process.argv.find((a) => a.startsWith('--note=')) || '').split('=').slice(1).join('=') || '';
-const SHOT = process.argv.includes('--shot');
-const SHEET = process.argv.includes('--sheet');   // contact-sheet QA capture
-const REEL = process.argv.includes('--reel');     // marketing reel: a run of frames of one forced pose
-// The preview canvas renderer.js sizes itself to in SHOT mode. Kept here so the
-// preview WINDOW can be built to cover it; the two must not drift (see createWindow).
-const SHOT_CANVAS = { w: 260, h: 320 };
-// `--at=<ms>` sets how long to let the scene animate before the --shot capture, so
-// animated poses (typing kneads, paper batting) can be QA'd at any phase.
-const shotAtMs = Math.max(0, Number((process.argv.find((a) => a.startsWith('--at=')) || '').split('=')[1]) || 700);
+// Preview and capture flags (--shot, --sheet, --reel and their knobs). A normal
+// launch passes none of them; see src/main/cli.js.
+const cli = parseCli(process.argv);
+const { stateArg, patternArg, dirArg, speciesArg, noteArg, SHOT, SHEET, REEL, shotAtMs } = cli;
 
-// `--reel` records a run of frames of ONE forced pose straight to PNGs, so
-// scripts/make-reel.js can string the poses together into a demo video. Every knob
-// is a flag because framing (how big the pet is, where it sits on the wallpaper) is
-// judged by eye against a real backdrop, not derived.
-const reelNum = (name, dflt) => {
-  const v = Number((process.argv.find((a) => a.startsWith(`--${name}=`)) || '').split('=')[1]);
-  return Number.isFinite(v) ? v : dflt;
-};
-const reelStr = (name) => (process.argv.find((a) => a.startsWith(`--${name}=`)) || '').split('=').slice(1).join('=') || '';
-const reel = {
-  out: reelStr('out'),                  // directory the PNG frames land in
-  bg: reelStr('bg'),                    // desktop backdrop jpeg, already sized to w x h
-  w: reelNum('w', 1920), h: reelNum('h', 1080),
-  scale: reelNum('scale', 3),           // CSS upscale of the 260x320 pet canvas
-  left: reelNum('left', 1150), top: reelNum('top', 120),
-  frames: reelNum('frames', 48), fps: reelNum('fps', 20),
-  warmup: reelNum('warmup', 8),         // paints to discard while the pose settles
-  timeout: reelNum('timeout', 60000),
-  drag: process.argv.includes('--drag'),
-  // Render at `every` x fps and keep one paint in `every`. This is not smoothing:
-  // renderer.js integrates its springs with `step = min(2.5, dt / 16)`, so at 20 fps
-  // step pins to 2.5 and the head/feet spring gain goes above 1. The sim DIVERGES -
-  // the drag stretch runs away until the cat is a one-pixel vertical line somewhere
-  // off frame. Driving the page at 60 fps puts step back near 1 and the same drag is
-  // stable, so any spring-driven move films at `--every=3`.
-  every: Math.max(1, reelNum('every', 1)),
-};
 // A reel run must not touch the pet the user is actually running. The overlay
-// persists `pos` to localStorage (persistPos, renderer.js), localStorage lives in
+// persists `pos` to localStorage (persistPos, the overlay), localStorage lives in
 // userData, and a capture forces the pet to the preview position - so filming with
 // the default userData quietly moves the real pet to the corner of the preview
 // canvas. Give the capture its own throwaway profile. Must happen before ready.
@@ -150,32 +105,7 @@ if (process.platform === 'darwin' && app.dock && !SHOT && !SHEET && !REEL) app.d
 
 // Launch-at-login (unpackaged): run `electron.exe <appDir>` on login.
 const APP_DIR = path.resolve(__dirname, '..');
-function setAutostart(enabled) {
-  // `path` and `args` are documented win32-only and are silently dropped on macOS.
-  // Worse, from source process.execPath is Electron's own binary, so macOS would
-  // register Electron.app and the user would get a bare Electron window at login
-  // instead of a pet. Only register a packaged bundle there.
-  if (process.platform === 'darwin') {
-    if (!app.isPackaged) return;
-    try { app.setLoginItemSettings({ openAtLogin: enabled }); } catch (e) { /* not fatal */ }
-    return;
-  }
-  app.setLoginItemSettings({ openAtLogin: enabled, path: process.execPath, args: enabled ? [APP_DIR] : [] });
-}
-
-// Whether we have ever enabled launch-at-login on this machine. Only consulted on
-// macOS, where the login item is user-visible and user-togglable: after the first
-// run the user owns that switch, not us. A missing/unreadable marker reads as "not
-// yet asked", so the worst case is asking once more, never overriding repeatedly.
-function autostartMarkerPath() { return path.join(app.getPath('userData'), '.autostart-set'); }
-function autostartAsked() { try { return fs.existsSync(autostartMarkerPath()); } catch (e) { return false; } }
-function markAutostartAsked() {
-  try {
-    const fp = autostartMarkerPath();
-    fs.mkdirSync(path.dirname(fp), { recursive: true });
-    fs.writeFileSync(fp, new Date().toISOString());
-  } catch (e) { /* best effort: at worst we offer again next launch */ }
-}
+const autostart = makeAutostart({ app, appDir: APP_DIR });   // src/main/autostart.js
 
 // --- low-power state -------------------------------------------------------
 // Effective low power = user toggled it on, OR (auto-on-battery is on AND we're
@@ -200,144 +130,7 @@ function startCursorTimer(tick) {
   cursorTimer = setInterval(tick, effectiveLowPower() ? 50 : 33);
 }
 
-// Defence-in-depth: these windows only ever load local files, so deny any
-// navigation or window-open attempt outright (would only fire if renderer content
-// were ever compromised).
-function hardenNav(w) {
-  w.webContents.on('will-navigate', (e) => e.preventDefault());
-  w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-}
 
-// `--drag`: play a real drag on a loop, instead of forcing a pose.
-//
-// `--state=mochi` looks like the right way to film the stretch, and it is not.
-// That branch PINS head and feet to fixed offsets with zero velocity on every
-// frame, so it is a held pose for eyeballing proportions in a still. Filmed, it is
-// a frozen cat sitting in the middle of nine animated clips, which reads as a bug
-// rather than as a pose. The stretch is a spring simulation, and it only runs when
-// the cat is genuinely being dragged.
-//
-// So: no forced state, and drive the two variables a real drag drives. Both are
-// top-level `let`s in renderer.js, which classic scripts put in the global lexical
-// environment, so later global code reaches them by name. tests/overlay-vm-backed
-// tests already lean on this, and tests/reel-spec.test.js pins the names.
-// Timings are deliberate. While `grabbing`, the feet spring chases the head slowly
-// (FK 0.07) AND takes gravity every frame, so the head-to-feet distance grows for
-// as long as you hold on. A long hold stretches the body past the point where the
-// middle band has any width left and the cat renders as a black hairline. The
-// app's own held pose puts the head at 1.7 x SH above the feet, so that is the
-// shape to aim at: lift fast, waggle briefly, let go, and spend most of the loop
-// on the bounce back, which is the good part anyway.
-// LEAD phase-locks the loop to the capture. The driver starts when the page
-// finishes loading, the recorder starts after `--warmup` paints, and if those two
-// clocks are not lined up the clip opens somewhere random in the cycle - which in
-// practice meant a full second of a cat just sitting under a label that promises a
-// stretch. Hold still for LEAD ms, set `--warmup` to the same span, and frame 0 is
-// the moment the hand comes down.
-const DRAG_DRIVER = `(() => {
-  const T = 2400, LEAD = 1000, t0 = performance.now();
-  setInterval(() => {
-    const since = performance.now() - t0 - LEAD;
-    if (since < 0) { grabbing = false; cursor.x = 24; cursor.y = 300; return; }
-    const u = (since % T) / T;
-    // Park the pointer well clear of the pet whenever it is not being held. Left
-    // resting on the head, a released pointer is indistinguishable from a pat: the
-    // cat purrs, hearts come up, and petBurstUntil LATCHES that for a while, so the
-    // clip labelled "drag it" fills up with hearts instead of a stretch.
-    if (u >= 0.55) {
-      grabbing = false;
-      cursor.x = 24; cursor.y = 300;
-      petBurstUntil = 0; petTouchUntil = 0;
-      return;
-    }
-    // Snap the lift, do not ease it. The head spring is fast (HK 0.45) and the feet
-    // spring is slow (FK 0.07), so it is the SPEED of the lift that opens the gap
-    // between them, and that gap IS the stretch. Lift gently and the whole cat just
-    // travels upward in one piece, which is a different and much duller gag.
-    if (u < 0.08) {
-      grabbing = true;
-      cursor.x = 130;
-      cursor.y = 250 - (u / 0.08) * 145;
-      return;
-    }
-    grabbing = true;                                                  // dangled and waggled
-    cursor.x = 130 + Math.sin((u - 0.08) * 150) * 12;
-    cursor.y = 105;
-  }, 16);
-})();`;
-
-// `--reel`: record a run of frames of ONE forced pose, for the demo video.
-//
-// Three deliberate choices, each of which took a failure to arrive at:
-//   - OFFSCREEN rather than a visible window. The frames have to be 1920x1080 and a
-//     real window cannot exceed the physical display, so a visible window silently
-//     caps the capture at whatever the monitor is.
-//   - The backdrop is injected with insertCSS and captured WITH the pet, instead of
-//     compositing a transparent capture afterwards. capturePage() on a transparent
-//     window is unreliable about the alpha channel on Windows, and a lost alpha
-//     looks like a black box behind the cat rather than an error.
-//   - The wallpaper goes in as a data: URI. index.html's CSP is
-//     `img-src 'self' data:`, so a file:// url is blocked outright.
-// It keeps `shot=1`: that is what pins the canvas at a fixed 260x320 regardless of
-// window size (renderer.js sizes it there and skips the resize listener), fixes the
-// pet's position, and gates every prop flag including --bfly.
-function createReelWindow() {
-  if (!reel.out || !reel.bg) { console.error('[reel] --out=<dir> and --bg=<jpeg> are both required'); return app.quit(); }
-  const win = new BrowserWindow({
-    show: false, frame: false, useContentSize: true, width: reel.w, height: reel.h,
-    webPreferences: {
-      offscreen: true, preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true, nodeIntegration: false, sandbox: true,
-    },
-  });
-  hardenNav(win);
-  fs.mkdirSync(reel.out, { recursive: true });
-
-  let saved = 0, seen = 0, done = false;
-  const finish = (why) => {
-    if (done) return;
-    done = true;
-    console.log(`[reel] ${saved}/${reel.frames} frames -> ${reel.out}${why ? ' (' + why + ')' : ''}`);
-    app.quit();
-  };
-
-  win.webContents.on('paint', (_e, _dirty, image) => {
-    if (done) return;
-    seen += 1;
-    if (seen <= reel.warmup) return;   // discard the first paints: the pose is still settling
-    if ((seen - reel.warmup - 1) % reel.every !== 0) return;   // keep 1 paint in `every`
-    fs.writeFileSync(path.join(reel.out, `f${String(saved).padStart(5, '0')}.png`), image.toPNG());
-    saved += 1;
-    if (saved >= reel.frames) finish();
-  });
-  win.webContents.on('console-message', (_e, _l, message) => console.log('[r]', message));
-
-  win.webContents.once('did-finish-load', async () => {
-    const bg = fs.readFileSync(reel.bg).toString('base64');
-    await win.webContents.insertCSS(`
-      html, body { background: #0b0d12 url("data:image/jpeg;base64,${bg}") center/cover no-repeat !important; }
-      #cat { position: fixed !important; left: ${reel.left}px !important; top: ${reel.top}px !important;
-             transform: scale(${reel.scale}) !important; transform-origin: top left !important; }
-    `);
-    if (reel.drag) await win.webContents.executeJavaScript(DRAG_DRIVER);
-    win.webContents.setFrameRate(Math.min(60, reel.fps * reel.every));
-    win.webContents.invalidate();
-  });
-
-  const params = ['shot=1'];
-  if (stateArg) params.push(`state=${stateArg}`);
-  if (patternArg) params.push(`pattern=${patternArg}`);
-  if (dirArg) params.push(`dir=${dirArg}`);
-  if (speciesArg) params.push(`species=${speciesArg}`);
-  if (process.argv.some((a) => a === '--bfly' || a.startsWith('--bfly='))) params.push('bfly=1');
-  if (process.argv.some((a) => a === '--treat' || a.startsWith('--treat='))) params.push('treat=1');
-  if (noteArg) params.push(`note=${encodeURIComponent(noteArg)}`);
-  win.loadFile(path.join(__dirname, 'index.html'), { search: params.join('&') });
-
-  // Hard stop. A pose that stops producing paints (or a backdrop that fails to
-  // decode) must not hang the batch that is looping over every move.
-  setTimeout(() => finish('timed out'), reel.timeout);
-}
 
 function createWindow() {
   const b = screen.getPrimaryDisplay().bounds; // laptop / primary display only (no extended screen)
@@ -352,8 +145,8 @@ function createWindow() {
   if (SHOT || SHEET) {
     // Small focusable window for previews (no overlay/click-through). The sheet
     // window stays hidden - it exports its canvas via IPC, not a screen capture.
-    // The width MUST cover the preview canvas that renderer.js's SHOT branch sizes
-    // (SHOT_CANVAS below): it was 20px narrower for a long time, so a --shot capture
+    // The width MUST cover the preview canvas that the overlay's SHOT branch sizes
+    // (SHOT_CANVAS, src/main/cli.js): it was 20px narrower for a long time, so a --shot capture
     // quietly cropped anything that reached the right-hand side of the canvas and
     // the loss looked like a rendering bug rather than a window that was too small.
     // tests/shot-window.test.js pins the two together.
@@ -388,10 +181,7 @@ function createWindow() {
   if (patternArg) params.push(`pattern=${patternArg}`);
   if (dirArg) params.push(`dir=${dirArg}`);
   if (speciesArg) params.push(`species=${speciesArg}`);
-  // startsWith, not includes: every other preview flag takes a --flag=value form,
-  // so `--treat=1` (the spelling renderer.js's own comment documents) was silently
-  // ignored here and the QA shot came back with no fish. Both spellings work now.
-  const hasFlag = (name) => process.argv.some((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+  const { hasFlag } = cli;   // --treat and --treat=1 both count (see src/main/cli.js)
   if (hasFlag('bfly')) params.push('bfly=1');    // force the butterfly visitor (QA shots)
   if (hasFlag('treat')) params.push('treat=1');  // force a dropped treat (QA shots)
   if (hasFlag('ball')) params.push('ball=1');    // force a resting fetch ball (QA shots, dogs)
@@ -401,35 +191,26 @@ function createWindow() {
   if (SHEET) params.push('sheet=1');
   win.loadFile(path.join(__dirname, 'index.html'), { search: params.join('&') });
 
-  // Log GPU/renderer crashes - and, for the live pet, auto-recover by reloading
-  // so a transparent-overlay GPU crash never leaves a dead, invisible window.
-  // Backed off and capped: a transparent always-on-top compositor meets every
-  // consumer GPU driver in the wild, and a driver that crashes the renderer on
-  // load would otherwise reload every 400ms forever - burning CPU, spamming the
-  // log and flickering the overlay with no way for the user to see why. After
-  // RELOAD_MAX consecutive crashes it stops and says so, rather than retrying
-  // into the same wall in silence.
+  // A dead renderer is reloaded with backoff, and given up on after a crash loop
+  // (src/main/crash-reload.js).
   win.webContents.on('render-process-gone', (_e, details) => {
     log.error('overlay renderer gone', details);
     if (SHOT || !win || win.isDestroyed() || details.reason === 'clean-exit') return;
-    // A renderer that has stayed up a while is a fresh fault, not a crash loop.
-    if (Date.now() - lastRenderCrashAt > RELOAD_RESET_MS) renderCrashes = 0;
-    lastRenderCrashAt = Date.now();
-    renderCrashes += 1;
-    if (renderCrashes > RELOAD_MAX) {
-      log.error(`overlay crashed ${renderCrashes} times in a row; giving up on reload`);
+    const r = onRendererGone(crashState, Date.now());
+    crashState = r.state;
+    if (r.giveUp) {
+      log.error(`overlay crashed ${crashState.crashes} times in a row; giving up on reload`);
       notify('{name} kept crashing, so I stopped reloading. Restarting the app may help.',
         { dedupeKey: 'render-crash-loop', dedupeMs: 60000, source: 'system' });
       return;
     }
-    const wait = Math.min(400 * 2 ** (renderCrashes - 1), 15000);   // 400ms, 800, 1.6s ... capped
-    setTimeout(() => { if (win && !win.isDestroyed()) win.reload(); }, wait);
+    setTimeout(() => { if (win && !win.isDestroyed()) win.reload(); }, r.reloadIn);
   });
   win.webContents.on('console-message', (_e, _l, message) => console.log('[r]', message));
 
   // Push current settings to the overlay as soon as (and every time) it loads,
   // so first paint already has the name / coat / sound+hunt flags.
-  win.webContents.on('did-finish-load', () => { sendThemes(); if (!SHOT && !SHEET) { applyConfigToOverlay(); sendPomo(); sendGeom(); showFirstRunTips(); } });
+  win.webContents.on('did-finish-load', () => { sendThemes(); if (!SHOT && !SHEET) { applyConfigToOverlay(); pomodoro.publish(); sendGeom(); showFirstRunTips(); } });
 
   // System-wide keyboard hook so the cat reacts to typing in ANY app.
   // (Skipped for --shot previews - a screenshot has no need for a global hook,
@@ -478,65 +259,12 @@ function createWindow() {
   // cursor->eyes, so a coarser sample still tracks smoothly while sparing the CPU.
   startCursorTimer(cursorTick);
 
-  // Watch the AI-agent status file; forward changes to the renderer. Event-driven
-  // via fs.watch (the filename filter skips unrelated temp churn); falls back to a
-  // slow poll if watching the temp dir isn't available.
-  let lastAgent = '';
-  const pushAgent = () => {
-    if (!win || win.isDestroyed()) return;
-    let s;
-    try { s = (fs.readFileSync(AGENT_FILE, 'utf8').trim() || 'idle'); } catch (e) { s = 'idle'; }
-    if (s !== lastAgent) { lastAgent = s; win.webContents.send('agent', s); }
-  };
-
-  // Tail the message-bridge file. We baseline the offset to the current size so a
-  // backlog from before launch isn't replayed; then forward only freshly-appended
-  // lines, de-duped by id, through notify() (bubble + toast + meow).
-  let notifyOffset = 0; const notifySeen = new Set(); let notifyTail = '';
-  try { notifyOffset = fs.statSync(NOTIFY_FILE).size; } catch (e) { notifyOffset = 0; }
-  const pushNotify = () => {
-    if (!win || win.isDestroyed()) return;
-    let size;
-    try { size = fs.statSync(NOTIFY_FILE).size; } catch (e) { return; }
-    if (size < notifyOffset) { notifyOffset = 0; notifyTail = ''; }   // truncated/rotated
-    if (size === notifyOffset) return;
-    let chunk;
-    try {
-      const fd = fs.openSync(NOTIFY_FILE, 'r');
-      const buf = Buffer.alloc(size - notifyOffset);
-      fs.readSync(fd, buf, 0, buf.length, notifyOffset);
-      fs.closeSync(fd);
-      chunk = buf.toString('utf8');
-    } catch (e) { return; }
-    notifyOffset = size;
-    notifyTail += chunk;
-    const lines = notifyTail.split('\n');
-    notifyTail = lines.pop();   // keep any trailing partial line for next time
-    if (notifyTail.length > 65536) notifyTail = '';   // a producer that never writes a newline can't grow memory unbounded
-    for (const line of lines) {
-      const t = line.trim(); if (!t) continue;
-      let o; try { o = JSON.parse(t); } catch (e) { continue; }
-      if (!o || typeof o !== 'object' || !o.message) continue;
-      const id = String(o.id || (o.ts || '') + ':' + o.message);
-      if (notifySeen.has(id)) continue;
-      notifySeen.add(id);
-      if (notifySeen.size > 500) { for (const k of notifySeen) { notifySeen.delete(k); if (notifySeen.size <= 250) break; } }
-      // sanitize fields from the untrusted bridge file before they reach Notification + renderer IPC
-      const level = ['info', 'success', 'warn', 'alert'].includes(o.level) ? o.level : 'info';
-      const ttl = Math.max(500, Math.min(30000, Math.round(Number(o.ttl)) || 5000));
-      const title = String(o.title || 'pixelpets').slice(0, 80);
-      notify(String(o.message).slice(0, 300), { source: 'bridge', dedupeKey: 'bridge:' + id, title, level, ttl, sound: o.sound !== false });
-    }
-  };
-  try { lastAgent = fs.readFileSync(AGENT_FILE, 'utf8').trim(); } catch (e) { /* none yet */ }
-  try {
-    agentWatcher = fs.watch(os.tmpdir(), (_ev, fname) => {
-      if (!fname || fname === path.basename(AGENT_FILE)) pushAgent();
-      if (!fname || fname === path.basename(NOTIFY_FILE)) pushNotify();
-    });
-  } catch (e) {
-    agentTimer = setInterval(() => { pushAgent(); pushNotify(); }, 500);
-  }
+  // Other programs talk to the pet through two temp files (src/main/bridge.js).
+  bridge = watchBridge({
+    isAlive: () => !!(win && !win.isDestroyed()),
+    onAgent: (state) => win.webContents.send('agent', state),
+    onMessage: (message, opts) => notify(message, opts),
+  });
 
   // Keep the overlay matched to the primary (laptop) display on resolution/DPI changes,
   // so the cat never ends up clipped or with a broken cursor→canvas mapping.
@@ -551,40 +279,8 @@ function createWindow() {
   screen.on('display-added', refit);
   screen.on('display-removed', refit);
 
-  // Keep the cat above EVERYTHING. alwaysOnTop at the highest level can still be
-  // stolen by fullscreen apps / other topmost windows, so re-assert it on a timer
-  // (and reclaim the very top with moveTop).
-  const reassertTop = () => {
-    if (!win || win.isDestroyed()) return;
-    if (cfg && cfg.onTop === false) return;       // user turned "always on top" off
-    try {
-      // The off->on toggle and moveTop() are a WINDOWS re-raise trick. On macOS they
-      // drop the window from NSScreenSaverWindowLevel to normal and back on every
-      // tick - 1.4 times a second, forever - which is window-server thrash the user
-      // sees as flicker and the battery sees as work.
-      if (process.platform !== 'darwin') {
-        win.setAlwaysOnTop(false);                // toggle off->on forces a real re-raise on Windows
-        win.setAlwaysOnTop(true, 'screen-saver');
-        win.moveTop();
-      } else {
-        win.setAlwaysOnTop(true, 'screen-saver');
-      }
-      // Collection behaviour is sticky, so this does not belong on the timer at all
-      // on macOS; it is set once at window creation. Re-assert only off-timer events
-      // (a display change can drop it).
-    } catch (e) { /* ignore */ }
-  };
-  // Re-assert the Spaces/fullscreen behaviour only on the events that can actually
-  // drop it, never on the 700ms tick (see skipTransformProcessType above).
-  const reassertSpaces = () => {
-    if (process.platform !== 'darwin' || !win || win.isDestroyed()) return;
-    try { win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true }); } catch (e) { /* ignore */ }
-  };
-  reassertTop();                                  // claim the top immediately
-  topTimer = setInterval(reassertTop, 700);       // and hold it (toggle re-raise each tick)
-  win.webContents.on('did-finish-load', () => { reassertTop(); reassertSpaces(); });
-  screen.on('display-metrics-changed', () => { reassertTop(); reassertSpaces(); });
-  screen.on('display-added', () => { reassertTop(); reassertSpaces(); });
+  // Keep the pet above everything (src/main/keep-on-top.js).
+  onTop = keepOnTop({ win, getCfg: () => cfg, screen });
 }
 
 // ---- settings: load, broadcast, persist ------------------------------------
@@ -595,23 +291,11 @@ function applyConfigToOverlay() {
     broadcastPower();   // keep the derived low-power flag + cursor cadence in sync with config
   }
 }
-// Send the authoritative bottom work-area inset (taskbar height) from Electron's screen
-// API. The overlay's DOM window.screen is unreliable at non-100% DPI (it mixes physical
-// and logical pixels), which lands the cat mid-screen; this is in DIP, matching the
-// window's innerHeight, so the cat finds the true taskbar line.
+// Tell the overlay where the floor is, from Electron's screen API (src/main/geometry.js).
 function sendGeom() {
   if (!win || win.isDestroyed() || !win.webContents) return;
-  const d = screen.getPrimaryDisplay(), b = d.bounds, wa = d.workArea;
-  const bottomInset = Math.max(0, (b.y + b.height) - (wa.y + wa.height));   // 0 = no bottom taskbar (top/side/auto-hide) -> renderer rests at the true bottom
-  const topInset = Math.max(0, wa.y - b.y), leftInset = Math.max(0, wa.x - b.x), rightInset = Math.max(0, (b.x + b.width) - (wa.x + wa.width));
-  // The floor line = the work-area bottom (top edge of the taskbar/Dock) measured from
-  // the window's TOP edge (the overlay is pinned to the display's top-left). This is the
-  // authoritative floor whether or not the OS lets the overlay cover the taskbar region:
-  // on Windows the overlay is clamped to the work area, so its own innerHeight already
-  // excludes the taskbar - subtracting bottomInset again would float the cat. Sending an
-  // absolute floor line avoids that double-count.
-  const bottomWorkY = (wa.y + wa.height) - b.y;
-  win.webContents.send('geom', { bottomInset, topInset, leftInset, rightInset, bottomWorkY });
+  const d = screen.getPrimaryDisplay();
+  win.webContents.send('geom', floorGeometry(d.bounds, d.workArea));
 }
 function sendThemes() {
   if (win && !win.isDestroyed() && win.webContents) win.webContents.send('themes', themesCache);
@@ -632,7 +316,7 @@ function persistAndBroadcast(next) {
   const prevCal = cfg ? JSON.stringify(cfg.calendar) : '';
   cfg = config.save(next);
   if (cfg.breakMinutes !== prevBreak) breakAnchor = Date.now();  // editing the interval restarts it
-  if (JSON.stringify(cfg.pomodoro) !== prevPomo) syncPomodoro(); // toggling/retuning restarts the loop
+  if (JSON.stringify(cfg.pomodoro) !== prevPomo) pomodoro.sync(); // toggling/retuning restarts the loop
   if (JSON.stringify(cfg.email) !== prevEmail) mail.sync(cfg);   // re-poll when email settings change
   if (JSON.stringify(cfg.calendar) !== prevCal) cal.sync(cfg);   // re-fetch when calendar settings change
   tools.onConfig(cfg);   // hotkey + clipboard history follow their settings
@@ -672,92 +356,19 @@ function rebuildTrayMenu() {
   // The tray follows the active species: a dog owner picks a BREED, not a coat,
   // and each species remembers its own choice in its own config field.
   const sp = speciesOf(cfg && cfg.species);
-  const isDogCfg = sp.id === 'dog';
-  const coatField = isDogCfg ? 'dogPattern' : 'pattern';
-  const curCoat = cfg ? cfg[coatField] : 0;
-  const allCoats = (isDogCfg ? coatsFor('dog') : PATTERN_NAMES).concat(isDogCfg ? [] : themesCache.map((t) => t.name));
-  const coatItems = allCoats.map((name, i) => ({
-    label: name, type: 'radio', checked: curCoat === i,
-    click: () => persistAndBroadcast({ ...cfg, [coatField]: i }),
-  }));
-  const speciesItems = SPECIES_IDS.map((id) => ({
-    label: `${SPECIES[id].emoji}  ${SPECIES[id].label}`, type: 'radio', checked: sp.id === id,
-    click: () => persistAndBroadcast({ ...cfg, species: id }),
-  }));
-  const recent = notifyHistory.slice(-10).reverse();
-  const recentItems = recent.length
-    ? recent.map((n) => ({
-        label: relTime(n.ts) + ' - ' + String(n.message || '').replace(/\s+/g, ' ').slice(0, 48),
-        click: () => notify(n.message, { source: 'recap', recap: true, dedupeMs: 0, os: false }),   // re-show as a bubble
-      })).concat([{ type: 'separator' }, { label: 'Clear', click: () => { notifyHistory = []; saveNotifyHistorySoon(); rebuildTrayMenu(); } }])
-    : [{ label: '(nothing yet)', enabled: false }];
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Settings…', click: openSettings },
-    { label: 'Start break now', click: triggerBreak },
-    { label: sp.giveLabel, click: giveTreat },
-    { label: 'Recent notifications', submenu: recentItems },
-    { label: 'Snooze last reminder', submenu: [
-      { label: '5 minutes', click: () => snoozeLast(5) },
-      { label: '10 minutes', click: () => snoozeLast(10) },
-      { label: '30 minutes', click: () => snoozeLast(30) },
-    ] },
-    { type: 'separator' },
-    ...tools.trayItems(),
-    { type: 'separator' },
-    { label: 'Pet', submenu: speciesItems },
-    { label: sp.coatNoun, submenu: coatItems },
-    { label: 'Follow cursor', type: 'checkbox', checked: !!(cfg && cfg.followCursor), click: () => persistAndBroadcast({ ...cfg, followCursor: !cfg.followCursor }) },
-    { label: 'Mouse hunt', type: 'checkbox', checked: !!(cfg && cfg.huntOn), click: () => persistAndBroadcast({ ...cfg, huntOn: !cfg.huntOn }) },
-    { label: sp.playToggleLabel, type: 'checkbox', checked: !(cfg && cfg.butterflyOn === false), click: () => persistAndBroadcast({ ...cfg, butterflyOn: !(cfg && cfg.butterflyOn !== false) }) },
-    { label: 'Mood reactions', type: 'checkbox', checked: !(cfg && cfg.moodOn === false), click: () => persistAndBroadcast({ ...cfg, moodOn: !(cfg && cfg.moodOn !== false) }) },
-    { label: 'Startle at cursor', type: 'checkbox', checked: !(cfg && cfg.startleOn === false), click: () => persistAndBroadcast({ ...cfg, startleOn: !(cfg && cfg.startleOn !== false) }) },
-    { label: 'Mood', submenu: [
-      { label: 'Zoomies!', click: () => sendMood('zoomies') },
-      { label: 'Calm down', click: () => sendMood('calm') },
-    ] },
-    { label: 'Pomodoro', type: 'checkbox', checked: !!(cfg && cfg.pomodoro && cfg.pomodoro.on), click: () => persistAndBroadcast({ ...cfg, pomodoro: { ...cfg.pomodoro, on: !(cfg.pomodoro && cfg.pomodoro.on) } }) },
-    { label: 'Play area', submenu: [
-      { label: 'Whole screen', type: 'radio', checked: !(cfg && cfg.playArea), click: () => persistAndBroadcast({ ...cfg, playArea: null }) },
-      { label: 'Bottom strip', click: () => persistAndBroadcast({ ...cfg, playArea: { x: 0, y: 0.78, w: 1, h: 0.22 } }) },
-      { label: 'Top strip', click: () => persistAndBroadcast({ ...cfg, playArea: { x: 0, y: 0, w: 1, h: 0.25 } }) },
-      { label: 'Left third', click: () => persistAndBroadcast({ ...cfg, playArea: { x: 0, y: 0, w: 0.34, h: 1 } }) },
-      { label: 'Right third', click: () => persistAndBroadcast({ ...cfg, playArea: { x: 0.66, y: 0, w: 0.34, h: 1 } }) },
-      { label: 'Bottom-right', click: () => persistAndBroadcast({ ...cfg, playArea: { x: 0.6, y: 0.55, w: 0.4, h: 0.45 } }) },
-      { type: 'separator' },
-      { label: 'Set play area (drag)…', click: startSetArea },
-    ] },
-    { label: 'Always on top', type: 'checkbox', checked: !(cfg && cfg.onTop === false), click: () => persistAndBroadcast({ ...cfg, onTop: !(cfg && cfg.onTop !== false) }) },
-    { label: 'Wander', type: 'checkbox', checked: !(cfg && cfg.roamOn === false), click: () => persistAndBroadcast({ ...cfg, roamOn: !(cfg && cfg.roamOn !== false) }) },
-    { label: `Work mode (stay put, no ${sp.playNoun})`, type: 'checkbox', checked: !!(cfg && cfg.workMode), click: () => persistAndBroadcast({ ...cfg, workMode: !(cfg && cfg.workMode) }) },
-    { label: 'Rest corner', submenu: [
-      { label: 'Bottom-left', type: 'radio', checked: !!(cfg && cfg.restSide === 'left'), click: () => persistAndBroadcast({ ...cfg, restSide: 'left' }) },
-      { label: 'Bottom-right', type: 'radio', checked: !(cfg && cfg.restSide === 'left'), click: () => persistAndBroadcast({ ...cfg, restSide: 'right' }) },
-      { type: 'separator' },
-      // Dragging the pet somewhere makes that spot its home, and the radios above cannot undo
-      // that on their own: re-picking the corner already selected changes no setting, so the
-      // renderer never hears about it. This is the way back.
-      { label: 'Send it home (forget the drop spot)', click: () => sendAction('home') },
-    ] },
-    { label: 'Stay on the floor', type: 'checkbox', checked: !(cfg && cfg.floorLock === false), click: () => persistAndBroadcast({ ...cfg, floorLock: !(cfg && cfg.floorLock !== false) }) },
-    { label: onBattery ? 'Low power mode (on battery)' : 'Low power mode', type: 'checkbox', checked: effectiveLowPower(), click: () => persistAndBroadcast({ ...cfg, lowPower: !(cfg && cfg.lowPower) }) },
-    { label: 'Sound', type: 'checkbox', checked: !!(cfg && cfg.soundOn), click: () => persistAndBroadcast({ ...cfg, soundOn: !cfg.soundOn }) },
-    { label: '🎸 Lobby Jam', submenu: (() => {
-      const lj = (cfg && cfg.lobbyJam) || { on: false, mood: 'cozy' };
-      const MOODS = [['cozy', 'Cozy café'], ['dreamy', 'Dreamy'], ['upbeat', 'Upbeat lounge'], ['focus', 'Deep focus'], ['rain', 'Rainy study'], ['sleepy', 'Sleepy night']];
-      return [
-        { label: 'Play music', type: 'checkbox', checked: !!lj.on, click: () => persistAndBroadcast({ ...cfg, lobbyJam: { ...lj, on: !lj.on } }) },
-        { type: 'separator' },
-        // Picking a mood sets the MOOD. It used to also force on:true, so clicking
-        // the mood you already had selected - the most natural way to check which
-        // one is active - started the music you had deliberately left off.
-        ...MOODS.map(([id, label]) => ({ label, type: 'radio', checked: (lj.mood || 'cozy') === id,
-          click: () => persistAndBroadcast({ ...cfg, lobbyJam: { ...lj, mood: id } }) })),
-      ];
-    })() },
-    { type: 'separator' },
-    { label: 'Report a problem…', click: () => reportWin && reportWin.open() },
-    { label: 'Quit pixelpets', click: () => app.quit() },
-  ]));
+  const coatNames = sp.id === 'dog' ? coatsFor('dog') : PATTERN_NAMES.concat(themesCache.map((t) => t.name));
+  tray.setContextMenu(Menu.buildFromTemplate(buildTrayTemplate({
+    cfg, getCfg: () => cfg, species: sp, coatNames,
+    speciesList: SPECIES_IDS.map((id) => ({ id, emoji: SPECIES[id].emoji, label: SPECIES[id].label })),
+    recent: notifyHistory.recent(10), relTime,
+    onBattery, lowPowerOn: effectiveLowPower(), toolItems: tools.trayItems(),
+  }, {
+    persist: persistAndBroadcast, openSettings, triggerBreak, giveTreat, snooze: snoozeLast, sendMood, startSetArea, sendAction,
+    renotify: (n) => notify(n.message, { source: 'recap', recap: true, dedupeMs: 0, os: false }),
+    clearRecent: () => notifyHistory.clear(),
+    openReport: () => reportWin && reportWin.open(),
+    quit: () => app.quit(),
+  })));
 }
 
 // ---- settings window -------------------------------------------------------
@@ -835,37 +446,13 @@ function giveTreat() {
   win.webContents.send(speciesOf(cfg && cfg.species).giveChannel);
 }
 
-// ---- Pomodoro: focus/break loops. Main owns the phase clock (the renderer may
-// throttle/pause); the renderer just draws a countdown from { phase, endsAt }.
-// Phase flips ride the existing reactions: focus->break = the stretch break,
-// break->focus = a "back to focus" reminder bubble.
-let pomoPhase = 'focus', pomoEndsAt = 0, pomoTimer = null;
-function sendPomo() {
-  const on = !!(cfg && cfg.pomodoro && cfg.pomodoro.on);
-  if (win && !win.isDestroyed()) win.webContents.send('pomo', { on, phase: pomoPhase, endsAt: pomoEndsAt });
-}
-function pomoFlip() {
-  if (!cfg || !cfg.pomodoro || !cfg.pomodoro.on) return;
-  if (pomoPhase === 'focus') {
-    pomoPhase = 'break'; pomoEndsAt = Date.now() + cfg.pomodoro.breakMin * 60000;
-    triggerBreak();                                              // big stretch + meow
-  } else {
-    pomoPhase = 'focus'; pomoEndsAt = Date.now() + cfg.pomodoro.focusMin * 60000;
-    notify('Back to focus, {name}!', { source: 'pomo' });
-  }
-  sendPomo(); armPomoTimer();
-}
-function armPomoTimer() {
-  if (pomoTimer) { clearTimeout(pomoTimer); pomoTimer = null; }
-  if (!cfg || !cfg.pomodoro || !cfg.pomodoro.on) return;
-  pomoTimer = setTimeout(pomoFlip, Math.max(250, pomoEndsAt - Date.now()));
-}
-// (Re)start or stop the loop whenever the pomodoro config changes.
-function syncPomodoro() {
-  if (cfg && cfg.pomodoro && cfg.pomodoro.on) { pomoPhase = 'focus'; pomoEndsAt = Date.now() + cfg.pomodoro.focusMin * 60000; }
-  else { pomoEndsAt = 0; }
-  sendPomo(); armPomoTimer();
-}
+// Pomodoro focus/break loop (src/main/pomodoro.js). Main owns the clock.
+const pomodoro = makePomodoro({
+  getCfg: () => cfg,
+  send: (state) => { if (win && !win.isDestroyed()) win.webContents.send('pomo', state); },
+  onBreak: () => triggerBreak(),                                   // big stretch + meow
+  onFocus: () => notify('Back to focus, {name}!', { source: 'pomo' }),
+});
 // Single choke-point for every user-facing message: an in-overlay speech bubble
 // (the renderer plays the meow) plus an optional Windows toast. Every producer -
 // reminders, pomodoro, break, email, calendar, the external bridge - routes here.
@@ -879,42 +466,11 @@ const notifyRecent = new Map();   // dedupeKey -> last fire ms (drops rapid repe
 const soundRecent = new Map();    // 'snd:'+source -> last audible ms
 const SOUND_FLOOR_MS = 15000;
 
-// Rolling history of the cat's own notifications, so the user can recap what they
-// missed (tray "Recent notifications"). Persisted so it survives a restart.
-const NOTIFY_HISTORY_MAX = 50;
-let notifyHistory = [];
-let historySaveTimer = null;
-function notifyHistoryPath() { return path.join(app.getPath('userData'), 'notify-history.json'); }
-function loadNotifyHistory() {
-  try { const a = JSON.parse(fs.readFileSync(notifyHistoryPath(), 'utf8')); if (Array.isArray(a)) notifyHistory = a.slice(-NOTIFY_HISTORY_MAX); }
-  catch (e) { notifyHistory = []; }
-}
-// Written the same tmp-then-rename way as settings.json (config.js) and
-// themes.json (themes.js), so a crash mid-write cannot leave a truncated file
-// behind. The loader already resets to [] on a parse failure, so the blast
-// radius was only a lost recap - but the rest of the codebase writes atomically
-// and this was the one file that did not.
-function writeNotifyHistory() {
-  const fp = notifyHistoryPath();
-  try {
-    const tmp = `${fp}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(notifyHistory.slice(-NOTIFY_HISTORY_MAX)));
-    fs.renameSync(tmp, fp);
-  } catch (e) { /* best effort */ }
-}
-function saveNotifyHistorySoon() {   // debounced: avoid a disk write per alert
-  if (historySaveTimer) return;
-  historySaveTimer = setTimeout(() => {
-    historySaveTimer = null;
-    writeNotifyHistory();
-  }, 1500);
-}
-function recordNotify(source, message) {
-  notifyHistory.push({ ts: Date.now(), source: source || '', message });
-  if (notifyHistory.length > NOTIFY_HISTORY_MAX) notifyHistory = notifyHistory.slice(-NOTIFY_HISTORY_MAX);
-  saveNotifyHistorySoon();
-  rebuildTrayMenu();   // refresh the "Recent notifications" submenu
-}
+// What the pet said recently, for the tray recap (src/main/notify-history.js).
+const notifyHistory = makeNotifyHistory({
+  filePath: () => path.join(app.getPath('userData'), 'notify-history.json'),
+  onChange: () => rebuildTrayMenu(),
+});
 // One-time first-run hints.
 //
 // Nothing in the running app tells a new user that double-clicking opens Settings,
@@ -937,14 +493,6 @@ function showFirstRunTips() {
   const key = process.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
   say(6000, `Double-click me for settings. Right-click me, or press ${key}, for quick tools.`);
   say(18000, 'Scroll any page and watch me climb.');
-}
-
-function relTime(ts) {
-  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (s < 60) return s + 's ago';
-  const m = Math.round(s / 60); if (m < 60) return m + 'm ago';
-  const h = Math.round(m / 60); if (h < 24) return h + 'h ago';
-  return Math.round(h / 24) + 'd ago';
 }
 
 // ---- Focus Guard ------------------------------------------------------------
@@ -1008,7 +556,7 @@ function notify(message, opts) {
   if (now - (notifyRecent.get(key) || 0) < (opts.dedupeMs == null ? 4000 : opts.dedupeMs)) return;
   notifyRecent.set(key, now);
   if (notifyRecent.size > 200) { for (const k of notifyRecent.keys()) { notifyRecent.delete(k); if (notifyRecent.size <= 100) break; } }
-  if (!opts.recap) recordNotify(opts.source, msg);   // log it (but not when re-showing from the recap)
+  if (!opts.recap) notifyHistory.record(opts.source, msg);   // log it (but not when re-showing from the recap)
 
   // Focus Guard: while you are busy, anything that can wait DOES wait - no bubble,
   // no sound, no toast - and is delivered as one summary the moment you are free
@@ -1082,11 +630,11 @@ function tick() {
   if (onceFired) persistAndBroadcast({ ...cfg });
   if (cfg.breakMinutes > 0 && Date.now() - breakAnchor >= cfg.breakMinutes * 60000) triggerBreak();
   // Pomodoro catch-up: if the exact-time flip was lost to a sleep/stall, flip now.
-  if (cfg.pomodoro && cfg.pomodoro.on && pomoEndsAt && Date.now() > pomoEndsAt + 1000) pomoFlip();
+  pomodoro.catchUp();   // a flip the timer missed (sleep, a busy loop)
 }
 function startScheduler() {
   breakAnchor = Date.now();
-  syncPomodoro();                            // resume the pomodoro loop if it's enabled
+  pomodoro.sync();                           // resume the pomodoro loop if it's enabled
   tick();                                    // fire immediately (catch a launch late in the minute)
   scheduleTimer = setInterval(tick, 20000);  // sample each clock-minute ~3x; dedupe handles repeats
 }
@@ -1098,16 +646,12 @@ function cleanup() {
   if (cursorTimer) clearInterval(cursorTimer);
   tipTimers.forEach(clearTimeout); tipTimers = [];   // a hint must not fire mid-teardown
   if (areaTimer) clearTimeout(areaTimer);
-  if (topTimer) clearInterval(topTimer);
+  if (onTop) onTop.stop();
   if (hookRetry) { clearInterval(hookRetry); hookRetry = null; }
-  if (agentTimer) clearInterval(agentTimer);
   if (scheduleTimer) clearInterval(scheduleTimer);
-  if (pomoTimer) clearTimeout(pomoTimer);
-  if (historySaveTimer) {   // flush any pending history write now, then cancel the debounce so it can't fire mid-teardown
-    clearTimeout(historySaveTimer); historySaveTimer = null;
-    writeNotifyHistory();
-  }
-  if (agentWatcher) { try { agentWatcher.close(); } catch (e) { /* ignore */ } }
+  pomodoro.stop();
+  notifyHistory.flush();   // write any pending history now so it can't fire mid-teardown
+  if (bridge) bridge.stop();
   if (hookStarted) { try { require('uiohook-napi').uIOhook.stop(); } catch (e) { /* ignore */ } }
   try { mail.stop(); } catch (e) { /* ignore */ }
   try { cal.stop(); } catch (e) { /* ignore */ }
@@ -1116,26 +660,14 @@ function cleanup() {
   if (tray) { try { tray.destroy(); } catch (e) { /* ignore */ } tray = null; }
 }
 
-// Defense-in-depth: only accept IPC from our own local windows. Both the overlay and settings
-// windows load file:// pages, and navigation + window.open are blocked (hardenNav), so any
-// sender whose frame URL isn't file:// is bogus. Wrap on()/handle() so every handler is guarded.
-function isTrustedSender(e) {
-  const wc = e && e.sender;
-  if (!wc) return false;
-  // Primary + reliable: the IPC came from one of the windows WE created.
-  if ((win && !win.isDestroyed() && wc === win.webContents) ||
-      (settingsWin && !settingsWin.isDestroyed() && wc === settingsWin.webContents)) return true;
-  // The Quick Tools launcher is also a local file:// page, but it is the one window
-  // that takes free typing, so it gets its OWN channels (tools/index.js) and nothing
-  // else: it must never reach settings:save, the mail password or the calendar.
-  if (tools.ownsSender(wc)) return false;
-  if (reportWin && reportWin.owns(wc)) return false;   // the report window has its own channels too
-  // Fallback: any local file:// frame (navigation/window.open are blocked, so this is still ours).
-  try { const u = e.senderFrame && e.senderFrame.url; return typeof u === 'string' && u.startsWith('file:'); }
-  catch (_) { return false; }
-}
-const onSecure = (ch, fn) => ipcMain.on(ch, (e, ...a) => { if (isTrustedSender(e)) fn(e, ...a); });
-const handleSecure = (ch, fn) => ipcMain.handle(ch, (e, ...a) => (isTrustedSender(e) ? fn(e, ...a) : undefined));
+// Only our own windows may use IPC, and the launcher and report window only
+// their own channels (src/main/secure-ipc.js).
+const { onSecure, handleSecure } = makeSecureIpc({
+  ipcMain,
+  isMainWindow: (wc) => (win && !win.isDestroyed() && wc === win.webContents) ||
+    (settingsWin && !settingsWin.isDestroyed() && wc === settingsWin.webContents),
+  hasOwnChannels: (wc) => tools.ownsSender(wc) || !!(reportWin && reportWin.owns(wc)),
+});
 
 // Renderer reports the cat's interactive bbox (overlay-local px) + drag state.
 onSecure('hot', (_e, o) => {
@@ -1172,81 +704,17 @@ onSecure('sheet:image', (_e, dataUrl) => {
   } catch (e) { console.log('[sheet-error]', e.message); }
   app.quit();
 });
-onSecure('settings:open', () => openSettings());
-onSecure('report:open', () => { if (reportWin) reportWin.open(); });
-onSecure('settings:save-pattern', (_e, i) => {
-  if (!cfg) return;
-  persistAndBroadcast({ ...cfg, [speciesOf(cfg.species).id === 'dog' ? 'dogPattern' : 'pattern']: i });
-});
-onSecure('settings:save-species', (_e, id) => {
-  if (!cfg) return;
-  const next = SPECIES[id] ? id : 'cat';
-  const patch = { ...cfg, species: next };
-  if (next === 'dog' && !Number.isFinite(cfg.dogPattern)) patch.dogPattern = defaultCoatIndex('dog');
-  persistAndBroadcast(patch);
-});
-onSecure('settings:close', () => { if (settingsWin && !settingsWin.isDestroyed()) settingsWin.close(); });
-onSecure('settings:testSound', () => {
-  notify('Hi {name}!', { source: 'test', dedupeMs: 0, os: false });   // a sound test shouldn't also pop a desktop toast
-});
-// "Make it do something": the settings window asks for a behaviour by name and the
-// overlay decides what that means for the species it is currently wearing. Main is
-// a relay and deliberately does not map ids to poses - the renderer is the only
-// place that knows a dog's version of "go chase something" is its ball rather than
-// a butterfly. Allow-listed rather than forwarded blind, so the channel cannot
-// become a way to poke arbitrary renderer state.
-const PET_ACTIONS = new Set(['companion', 'give', 'play', 'stretch', 'groom', 'loaf', 'home']);
-// A function declaration rather than a const, so the tray menu built further up this file
-// can call it: the tray is the only surface that reaches 'home' with settings closed.
+// The overlay's one-shot actions. A function declaration so the tray menu can
+// reach 'home' with settings closed.
 function sendAction(id) { if (win && !win.isDestroyed()) win.webContents.send('action', id); }
-onSecure('settings:action', (_e, id) => {
-  if (!PET_ACTIONS.has(id)) return;
-  sendAction(id);
-});
-handleSecure('email:passwordInfo', () => mail.passwordInfo());
-handleSecure('email:setPassword', (_e, pw) => mail.setPassword(pw));
-handleSecure('email:test', (_e, pw) => mail.test(cfg, pw && String(pw).length ? String(pw) : null));
-handleSecure('calendar:test', () => cal.test(cfg));
-handleSecure('settings:get', () => cfg);
-handleSecure('settings:save', (_e, partial) => {
-  // reject anything that isn't a small plain object before merging (normalize is the
-  // real sanitizer, but this caps the in-flight allocation and drops junk payloads)
-  if (!partial || typeof partial !== 'object' || Array.isArray(partial)) return cfg;
-  try { if (JSON.stringify(partial).length > 65536) return cfg; } catch (e) { return cfg; }
-  persistAndBroadcast({ ...cfg, ...partial });
-  return cfg;
-});
-handleSecure('themes:get', () => themesCache);
-handleSecure('themes:add', (_e, t) => { themesCache = themes.save([...themesCache, t]); broadcastThemes(); rebuildTrayMenu(); return themesCache; });
-handleSecure('themes:delete', (_e, name) => {
-  const removed = themesCache.findIndex((x) => x.name === name);
-  themesCache = themes.save(themesCache.filter((x) => x.name !== name));
-  broadcastThemes(); rebuildTrayMenu();
-  // Coat indices run built-ins first, custom coats after, so deleting one shifts
-  // every coat below it up a slot. Re-anchor the cat's coat or it quietly becomes
-  // whichever coat inherited the index.
-  if (removed >= 0 && cfg) {
-    const next = config.coatAfterThemeRemoval(cfg.pattern, removed);
-    if (next !== cfg.pattern) persistAndBroadcast({ ...cfg, pattern: next });
-  }
-  return themesCache;
-});
-handleSecure('themes:export', async () => {
-  const r = await dialog.showSaveDialog(settingsWin || win, { title: 'Export custom coats', defaultPath: 'pixelpets-coats.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
-  if (r.canceled || !r.filePath) return false;
-  try { fs.writeFileSync(r.filePath, JSON.stringify({ themes: themesCache }, null, 2)); return true; } catch (e) { return false; }
-});
-handleSecure('themes:import', async () => {
-  const r = await dialog.showOpenDialog(settingsWin || win, { title: 'Import custom coats', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
-  if (r.canceled || !r.filePaths || !r.filePaths[0]) return themesCache;
-  try {
-    const data = JSON.parse(fs.readFileSync(r.filePaths[0], 'utf8').replace(/^﻿/, ''));
-    const incoming = themes.clean(Array.isArray(data) ? data : (data && data.themes));
-    const have = new Set(themesCache.map((t) => t.name.toLowerCase()));
-    themesCache = themes.save(themesCache.concat(incoming.filter((t) => !have.has(t.name.toLowerCase()))));
-    broadcastThemes(); rebuildTrayMenu();
-  } catch (e) { /* ignore bad file */ }
-  return themesCache;
+registerSettingsIpc({
+  onSecure, handleSecure, getCfg: () => cfg, persist: persistAndBroadcast,
+  getThemes: () => themesCache, setThemes: (list) => { themesCache = list; },
+  themesChanged: () => { broadcastThemes(); rebuildTrayMenu(); },
+  themes, config, pets: { SPECIES, speciesOf, defaultCoatIndex }, mail, cal, dialog,
+  getDialogParent: () => settingsWin || win,
+  getSettingsWin: () => (settingsWin && !settingsWin.isDestroyed() ? settingsWin : null),
+  openSettings, openReport: () => { if (reportWin) reportWin.open(); }, sendAction, notify,
 });
 
 app.whenReady().then(() => {
@@ -1271,19 +739,16 @@ app.whenReady().then(() => {
     process.on('unhandledRejection', (e) => { log.warn('unhandled promise rejection', e instanceof Error ? e : String(e)); });
   }
   themesCache = themes.load();
-  if (REEL) return createReelWindow();   // capture-only: no tray, no hooks, no scheduler
+  if (REEL) return createReelWindow(cli);   // capture-only: no tray, no hooks, no scheduler
   if (!SHOT && !SHEET) {
     // Don't fight the user. macOS lists login items in System Settings > General,
     // so a user who turns pixelpets off there has made an explicit choice; asserting
     // openAtLogin on every launch would silently undo it. Ask once, on the first run
     // that ever gets this far, and then leave it alone - the marker file mirrors the
     // pattern datadir.js already uses for its one-time migration.
-    if (process.argv.includes('--autostart=off')) setAutostart(false);
-    else if (process.platform !== 'darwin') setAutostart(true);
-    else if (!autostartAsked()) { setAutostart(true); markAutostartAsked(); }
-    if (process.argv.includes('--autostart=off')) { console.log('[autostart disabled]'); return app.quit(); }
+    if (autostart.applyOnLaunch(process.argv)) { console.log('[autostart disabled]'); return app.quit(); }
     cfg = config.load();
-    loadNotifyHistory();   // restore the recent-notifications recap from last session
+    notifyHistory.load();   // restore the recent-notifications recap from last session
   }
   createWindow();
   if (!SHOT && !SHEET) {

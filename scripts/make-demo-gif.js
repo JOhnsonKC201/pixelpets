@@ -2,7 +2,7 @@
 // DOES: it sits and follows your cursor, naps when idle, taps its paws when you
 // type, pounces to hunt, and purrs when you pet it. Pure JS, no browser / no
 // native deps: the sprite geometry comes from src/cat-sprite.js (single source of
-// truth) plus the pose composers copied from renderer.js, all rasterised by hand
+// truth) plus the pose composers copied from the overlay, all rasterised by hand
 // into RGBA frames and encoded with gifenc.
 //   Run:  node scripts/make-demo-gif.js [demo|hero|gallery|carousel|all] [mp4]
 //         npm run demo:all   # the three the README embeds
@@ -64,7 +64,7 @@ function buildSprite(cols, rows, compose) {
   return { grid: G, COLS: cols, ROWS: rows, eyes: [eyeBox('L'), eyeBox('R')], muzzle: muzzlePt() };
 }
 
-// ---- pose composers (sit from cat-sprite; the rest copied from renderer.js) --
+// ---- pose composers (sit from cat-sprite; the rest copied from the overlay) --
 function composeSit(B) {
   B = B || {};
   const CX = 12, bw = B.bodyW || 1;
@@ -439,7 +439,7 @@ function sceneMochi(frames, o = {}) {
 // ---- painted raster climb (the app's own hand-painted per-coat frames) ------
 // The scroll clip blits the SAME painted frames the app uses, which is why this
 // pure-Node script needs a PNG decoder. Coats without painted art swipe at a leaf
-// instead, and that pose is composed in renderer.js (a browser script this cannot
+// instead, and that pose is composed in the overlay (a browser script this cannot
 // import) - so the clip stars a painted coat, which is also the default coat.
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // Tiny PNG decoder (zlib inflate + un-filter) so this pure-Node script can blit

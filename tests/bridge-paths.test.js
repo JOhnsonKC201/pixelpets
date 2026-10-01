@@ -24,12 +24,12 @@ function tmpNames(rel) {
 // ...or out of a specific `const NAME = path.join(os.tmpdir(), '<name>')`.
 function constTmpName(rel, constName) {
   const m = new RegExp(`const\\s+${constName}\\s*=\\s*path\\.join\\(\\s*os\\.tmpdir\\(\\)\\s*,\\s*['"]([^'"]+)['"]`).exec(src(rel));
-  assert.ok(m, `expected src/main.js to define ${constName} as a file in os.tmpdir()`);
+  assert.ok(m, `expected src/main/bridge.js to define ${constName} as a file in os.tmpdir()`);
   return m[1];
 }
 
 test('the agent hook writes the file main.js watches', () => {
-  const watched = constTmpName('src/main.js', 'AGENT_FILE');
+  const watched = constTmpName('src/main/bridge.js', 'AGENT_FILE');
   const written = tmpNames('agent-hook.js');
 
   assert.deepStrictEqual(written, [watched],
@@ -37,7 +37,7 @@ test('the agent hook writes the file main.js watches', () => {
 });
 
 test('notify.js appends to the file main.js reads', () => {
-  const watched = constTmpName('src/main.js', 'NOTIFY_FILE');
+  const watched = constTmpName('src/main/bridge.js', 'NOTIFY_FILE');
   const written = tmpNames('scripts/notify.js');
 
   assert.deepStrictEqual(written, [watched],
@@ -49,8 +49,8 @@ test('the bridge filenames stay frozen at the published names', () => {
   // scripts that this repo cannot reach in and update. Renaming them to match the
   // pixelpets rebrand would break every existing installation, so pin them: a
   // deliberate change has to come here and read the reasoning first.
-  assert.strictEqual(constTmpName('src/main.js', 'AGENT_FILE'), 'pixelcat-agent.state');
-  assert.strictEqual(constTmpName('src/main.js', 'NOTIFY_FILE'), 'pixelcat-notify.jsonl');
+  assert.strictEqual(constTmpName('src/main/bridge.js', 'AGENT_FILE'), 'pixelcat-agent.state');
+  assert.strictEqual(constTmpName('src/main/bridge.js', 'NOTIFY_FILE'), 'pixelcat-notify.jsonl');
 });
 
 test('the Windows app identity stays frozen too', () => {
@@ -71,13 +71,13 @@ test('the docs quote the same bridge paths the code uses', () => {
   // wrong, so this asserts over the whole user-facing set rather than one file.
   const PAGES = ['README.md', 'docs/features.md', 'integrations/README.md'];
   const docs = PAGES.map((p) => [p, src(p)]);
-  for (const name of [constTmpName('src/main.js', 'AGENT_FILE'), constTmpName('src/main.js', 'NOTIFY_FILE')]) {
+  for (const name of [constTmpName('src/main/bridge.js', 'AGENT_FILE'), constTmpName('src/main/bridge.js', 'NOTIFY_FILE')]) {
     assert.ok(docs.some(([, text]) => text.includes(name)),
       `the bridge path ${name} is documented nowhere in ${PAGES.join(', ')}`);
   }
   // A page that names the wrong file is worse than one that stays quiet.
   const STALE = /%TEMP%\/([\w.-]+\.(?:state|jsonl))/g;
-  const live = [constTmpName('src/main.js', 'AGENT_FILE'), constTmpName('src/main.js', 'NOTIFY_FILE')];
+  const live = [constTmpName('src/main/bridge.js', 'AGENT_FILE'), constTmpName('src/main/bridge.js', 'NOTIFY_FILE')];
   for (const [page, text] of docs) {
     for (const m of text.matchAll(STALE)) {
       assert.ok(live.includes(m[1]), `${page} documents ${m[1]}, which nothing reads`);

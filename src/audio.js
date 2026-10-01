@@ -1,10 +1,10 @@
 // Procedural sound (WebAudio). Everything here is synthesized in code; the ONE optional
 // asset is assets/meow.(ogg|mp3|wav) - drop one in and it replaces the synth meow (see
 // Loaded as a classic <script> before
-// renderer.js, sharing the overlay's global scope: it reads `config` (volume/soundOn)
+// the overlay parts (src/overlay/), sharing their global scope: it reads `config` (volume/soundOn)
 // and `patternIndex`/`PATTERN_BUILD` (per-breed voice) and exposes audio()/playMeow()/
-// startPurr()/stopPurr()/playChirp()/playMrrp() that renderer.js calls. Extracted from
-// renderer.js to keep that file focused on drawing.
+// startPurr()/stopPurr()/playChirp()/playMrrp() that the overlay calls. Kept out of
+// the overlay so the drawing code stays about drawing.
 /* exported playMeow, startPurr, stopPurr, playChirp, playMrrp, playSwipe, playPlop */
 let actx = null, master = null;
 
@@ -57,7 +57,7 @@ function audio() {
 // synth meow. Loaded once via XHR - the overlay runs from file://, where fetch() is
 // blocked but XHR can read a local file. If it's absent or won't decode, the synth plays.
 // (This is the ONLY optional asset; everything else stays 100% synthesized.)
-// Is the overlay a dog right now? renderer.js defines isDog() and loads AFTER this
+// Is the pet a dog right now? The overlay defines isDog() and loads AFTER this
 // file, so this resolves at CALL time, never at load time.
 function voiceIsDog() { return typeof isDog === 'function' && isDog(); }
 

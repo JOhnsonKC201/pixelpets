@@ -1,11 +1,11 @@
 // The reel (scripts/make-reel.js) films the REAL renderer by forcing it into a pose
-// and by reaching into renderer.js variables by name. Every coupling below has the
+// and by reaching into the overlay variables by name. Every coupling below has the
 // same failure shape: nothing throws, a frame still renders, and what comes out is
 // an ordinary sitting cat underneath a label confidently describing something else.
 // That is the worst kind of break for a marketing asset, because the only thing
 // that catches it is a human watching all ten clips and knowing what to expect.
 //
-// So pin the pairs. Same approach as tests/shot-window.test.js: renderer.js is a
+// So pin the pairs. Same approach as tests/shot-window.test.js: the overlay is a
 // browser script that cannot be required under `node --test`, so its constants are
 // parsed out of source, while the reel's own move table is a plain CommonJS module
 // and is required directly.
@@ -15,47 +15,45 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const reel = require('../scripts/make-reel.js');
-const renderer = read(path.join('src', 'renderer.js'));
+const renderer = require('../src/overlay/parts').readOverlaySource();
 
-test('every pose the reel forces is a pose renderer.js still honours', () => {
+test('every pose the reel forces is a pose the overlay still honours', () => {
   for (const m of reel.MOVES.filter((x) => x.state)) {
     assert.ok(
       renderer.includes(`FORCED_STATE === '${m.state}'`),
-      `reel move "${m.id}" forces state=${m.state}, which renderer.js no longer branches on. `
+      `reel move "${m.id}" forces state=${m.state}, which the overlay no longer branches on. `
       + 'The capture would silently fall through to an idle sit under the label '
       + `"${m.label}".`,
     );
   }
 });
 
-test('the drag driver still names variables that exist in renderer.js', () => {
+test('the drag driver still names variables that exist in the overlay (src/overlay/)', () => {
   // The mochi clip cannot use --state=mochi (that branch pins the springs, giving a
-  // frozen pose), so it drives a real drag by assigning renderer.js's own top-level
+  // frozen pose), so it drives a real drag by assigning the overlay's own top-level
   // `let`s. Renaming any of them turns the clip back into a cat sitting still.
-  const main = read(path.join('src', 'main.js'));
-  const driver = main.match(/const DRAG_DRIVER = `([\s\S]*?)`;/);
-  assert.ok(driver, 'src/main.js no longer defines DRAG_DRIVER');
+  const { DRAG_DRIVER } = require('../src/main/reel-window');
+  assert.ok(typeof DRAG_DRIVER === 'string' && DRAG_DRIVER.length, 'src/main/reel-window.js no longer exports DRAG_DRIVER');
 
   for (const name of ['grabbing', 'cursor', 'petBurstUntil', 'petTouchUntil']) {
-    assert.match(driver[1], new RegExp(`\\b${name}\\b`), `DRAG_DRIVER stopped using ${name}`);
+    assert.match(DRAG_DRIVER, new RegExp(`\\b${name}\\b`), `DRAG_DRIVER stopped using ${name}`);
     assert.match(renderer, new RegExp(`^let [^;\\n]*\\b${name}\\b`, 'm'),
-      `DRAG_DRIVER assigns ${name}, but renderer.js no longer declares it at top level`);
+      `DRAG_DRIVER assigns ${name}, but the overlay no longer declares it at top level`);
   }
 });
 
-test('the reel frames the pet using the numbers renderer.js actually uses', () => {
+test('the reel frames the pet using the numbers the overlay actually uses', () => {
   // LEFT and TOP are derived from the SHOT canvas and the pet's anchor inside it.
   // If either drifts, the pet slides off the wallpaper or off the frame entirely,
   // and the capture still succeeds.
   const canvas = renderer.match(/viewW\s*=\s*(\d+)\s*;\s*viewH\s*=\s*(\d+)\s*;\s*viewDpr\s*=\s*1/);
-  assert.ok(canvas, 'could not find the SHOT canvas size in renderer.js');
+  assert.ok(canvas, 'could not find the SHOT canvas size in the overlay (src/overlay/)');
   assert.strictEqual(Number(canvas[1]), 260, 'SHOT canvas width changed; recompute LEFT in make-reel.js');
   assert.strictEqual(Number(canvas[2]), 320, 'SHOT canvas height changed; recompute TOP in make-reel.js');
 
   const anchor = renderer.match(/if \(SHOT\) pos = \{ x: (\d+), y: (\d+) \}/);
-  assert.ok(anchor, 'renderer.js no longer pins the pet position under SHOT');
+  assert.ok(anchor, 'the overlay no longer pins the pet position under SHOT');
   assert.strictEqual(Number(anchor[1]), 130, 'SHOT pet x moved; LEFT no longer centres the pet');
   assert.strictEqual(Number(anchor[2]), 250, 'SHOT pet y moved; TOP no longer lands its feet on the taskbar');
 
@@ -78,7 +76,7 @@ test('the reel coat has the painted climb art the scroll clip promises', () => {
   // Only some coats ship painted rope-climb frames; the rest fall back to swiping at
   // a leaf, which does not read as climbing and makes the label wrong.
   const skip = renderer.match(/CLIMB_FRAME_SKIP = new Set\(\[([^\]]*)\]\)/);
-  assert.ok(skip, 'renderer.js no longer declares CLIMB_FRAME_SKIP');
+  assert.ok(skip, 'the overlay no longer declares CLIMB_FRAME_SKIP');
   assert.ok(!skip[1].includes(`'${reel.COAT}'`), `the reel coat "${reel.COAT}" is excluded from painted climb frames`);
 
   for (const frame of ['idle', 'up1', 'up2', 'down1', 'down2']) {

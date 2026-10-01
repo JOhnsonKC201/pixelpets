@@ -19,15 +19,15 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 // Parsed from source rather than imported, the way tests/shot-window.test.js does
 // it: main.js pulls in Electron at require time, and neither renderer runs here.
 const html = read(path.join('src', 'settings.html'));
-const main = read(path.join('src', 'main.js'));
-const renderer = read(path.join('src', 'renderer.js'));
+const main = require('./helpers/sources').readMainSource();   // main.js + src/main/
+const renderer = require('../src/overlay/parts').readOverlaySource();
 const preload = read(path.join('src', 'preload.js'));
 const settingsPreload = read(path.join('src', 'settings-preload.js'));
 
 const buttonIds = [...html.matchAll(/data-act="([a-z]+)"/g)].map((m) => m[1]);
 const allowed = (() => {
   const m = main.match(/PET_ACTIONS = new Set\(\[([^\]]*)\]\)/);
-  assert.ok(m, 'src/main.js no longer declares a PET_ACTIONS allow-list');
+  assert.ok(m, 'the main process no longer declares a PET_ACTIONS allow-list');
   return [...m[1].matchAll(/'([a-z]+)'/g)].map((x) => x[1]);
 })();
 
@@ -42,7 +42,7 @@ test('every button is allowed through main and handled by the renderer', () => {
       `settings.html has a "${id}" button, but main.js's PET_ACTIONS does not allow it, `
       + 'so the click is dropped silently in the main process');
     assert.ok(renderer.includes(`case '${id}':`),
-      `main.js forwards "${id}", but renderer.js runAction has no case for it, `
+      `main.js forwards "${id}", but the overlay's runAction has no case for it, `
       + 'so the pet receives the message and ignores it');
   }
 });
@@ -56,10 +56,10 @@ test('nothing is allowed through that no button can send', () => {
 test('the ipc chain from the settings window to the pet is unbroken', () => {
   assert.match(settingsPreload, /ipcRenderer\.send\('settings:action'/,
     'settings-preload.js no longer exposes the action bridge');
-  assert.match(main, /onSecure\('settings:action'/, 'main.js no longer listens for settings:action');
-  assert.match(main, /webContents\.send\('action'/, 'main.js no longer forwards the action to the overlay');
+  assert.match(main, /onSecure\('settings:action'/, 'the main process no longer listens for settings:action');
+  assert.match(main, /webContents\.send\('action'/, 'the main process no longer forwards the action to the overlay');
   assert.match(preload, /onAction: sub\('action'/, 'preload.js no longer bridges the action channel');
-  assert.match(renderer, /onAction\(\(id\) => runAction\(id\)\)/, 'renderer.js no longer registers onAction');
+  assert.match(renderer, /onAction\(\(id\) => runAction\(id\)\)/, 'the overlay no longer registers onAction');
 });
 
 // ---- and now the behaviour itself, in the real renderer ---------------------

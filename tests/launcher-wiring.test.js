@@ -42,12 +42,13 @@ test('every suggest() result that crosses IPC is awaited (a Promise cannot be cl
 });
 
 test('main refuses the launcher on every general channel', () => {
+  // secure-ipc.js refuses any window that has its own channels before the
+  // file:// fallback (tests/secure-ipc.test.js). What is left to pin here is
+  // that main.js tells it the launcher is one of those windows.
   const main = codeOnly(read('main.js'));
-  const trusted = /function isTrustedSender[\s\S]*?\n}/.exec(main)[0];
-  const refusal = trusted.indexOf('tools.ownsSender(wc)) return false');
-  const fallback = trusted.indexOf("startsWith('file:')");
-  assert.ok(refusal > 0, 'isTrustedSender must refuse the launcher');
-  assert.ok(refusal < fallback, 'the refusal must come before the file:// fallback');
+  const wiring = /makeSecureIpc\(\{[\s\S]*?\n\}\);/.exec(main);
+  assert.ok(wiring, 'main.js no longer builds its IPC guard with makeSecureIpc');
+  assert.match(wiring[0], /hasOwnChannels:[^\n]*tools\.ownsSender\(wc\)/, 'the launcher must be listed as a window with its own channels');
 });
 
 test('only system.js spawns processes or opens things, and never through a shell', () => {
@@ -60,7 +61,7 @@ test('only system.js spawns processes or opens things, and never through a shell
 });
 
 test('right-click still reaches the coat cycle on Shift', () => {
-  const r = codeOnly(read('renderer.js'));
+  const r = codeOnly(require('../src/overlay/parts').readOverlaySource());
   const block = /addEventListener\('contextmenu'[\s\S]*?\n}\);/.exec(r)[0];
   assert.match(block, /e\.shiftKey/);
   assert.match(block, /cycleCoat\(\)/);

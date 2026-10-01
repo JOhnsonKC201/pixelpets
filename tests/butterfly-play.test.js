@@ -7,12 +7,11 @@
 // run. Time is advanced by hand (60ms frames); performance.now() is pinned at 0.
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
 const { loadOverlay } = require('../scripts/overlay-vm.js');
+const { readOverlaySource } = require('../src/overlay/parts');
 
 const STEP = 60;
-const RENDERER = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
+const RENDERER = readOverlaySource();
 
 // A cat with a butterfly already mid-visit and the cursor long idle, so the play
 // gates (cursorIdle, mouseQuiet) are all open from the first frame.

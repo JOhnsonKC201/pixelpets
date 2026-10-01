@@ -1,5 +1,38 @@
 const js = require('@eslint/js');
 const globals = require('globals');
+const espree = require('espree');
+const { OVERLAY_PARTS, overlayPartPaths } = require('./src/overlay/parts');
+
+// The overlay is split into classic scripts that share one global scope, but
+// ESLint looks at one file at a time. Give each part the top-level names the
+// OTHER parts declare, read straight from their source, so no-undef still
+// catches a real typo and nothing here has to be kept in sync by hand.
+function topLevelNames(file) {
+  const ast = espree.parse(require('fs').readFileSync(file, 'utf8'), { ecmaVersion: 'latest' });
+  const names = [];
+  const add = (p) => {
+    if (!p) return;
+    if (p.type === 'Identifier') names.push(p.name);
+    else if (p.type === 'ObjectPattern') p.properties.forEach((q) => add(q.value || q.argument));
+    else if (p.type === 'ArrayPattern') p.elements.forEach(add);
+    else if (p.type === 'AssignmentPattern') add(p.left);
+    else if (p.type === 'RestElement') add(p.argument);
+  };
+  for (const st of ast.body) {
+    if ((st.type === 'FunctionDeclaration' || st.type === 'ClassDeclaration') && st.id) names.push(st.id.name);
+    if (st.type === 'VariableDeclaration') st.declarations.forEach((d) => add(d.id));
+  }
+  return names;
+}
+const PART_NAMES = overlayPartPaths().map(topLevelNames);
+function siblingGlobals(index) {
+  const out = {};
+  PART_NAMES.forEach((names, i) => {
+    if (i !== index) for (const n of names) out[n] = 'writable';
+  });
+  return out;
+}
+const OVERLAY_FILES = OVERLAY_PARTS.map((name) => `src/overlay/${name}`);
 
 // Names that cat-sprite.js / template.js / bubble.js / climb-frames.js put in the shared global
 // scope and that the *consumer* overlay scripts (renderer/settings-renderer/cat-preview)
@@ -26,7 +59,7 @@ const sharedOverlay = {
   fillPlaceholders: 'readonly', CLIMB_FRAMES: 'readonly',
   // bubble.js provides the speech-bubble text layout (wrapping + edge clamping):
   layoutBubble: 'readonly', wrapBubbleText: 'readonly', bubbleInnerW: 'readonly',
-  // audio.js (loaded before renderer.js) provides these:
+  // audio.js (loaded before the overlay parts) provides these:
   audio: 'readonly', volNow: 'readonly', master: 'readonly', playMeow: 'readonly',
   startPurr: 'readonly', stopPurr: 'readonly', playChirp: 'readonly', playMrrp: 'readonly',
   playSwipe: 'readonly', playPlop: 'readonly',
@@ -35,7 +68,7 @@ const sharedOverlay = {
   drawSparkle: 'readonly', drawGuitar: 'readonly', drawNote: 'readonly',
 };
 
-const CONSUMER_OVERLAY = ['src/renderer.js', 'src/settings-renderer.js', 'src/cat-preview.js', 'src/launcher-renderer.js'];
+const CONSUMER_OVERLAY = [...OVERLAY_FILES, 'src/settings-renderer.js', 'src/cat-preview.js', 'src/launcher-renderer.js'];
 
 module.exports = [
   // Keep this in step with .gitignore. Without the local-only entries, a working
@@ -107,4 +140,11 @@ module.exports = [
       'no-irregular-whitespace': ['error', { skipRegExps: true, skipStrings: true, skipComments: true, skipTemplates: true }],
     },
   },
+  // Each overlay part also sees its siblings' top-level names. A name used only
+  // by a later part is not unused, so the unused check stays inside functions.
+  ...OVERLAY_FILES.map((file, i) => ({
+    files: [file],
+    languageOptions: { globals: siblingGlobals(i) },
+    rules: { 'no-unused-vars': ['warn', { vars: 'local', args: 'none', caughtErrors: 'none', varsIgnorePattern: '^_' }] },
+  })),
 ];

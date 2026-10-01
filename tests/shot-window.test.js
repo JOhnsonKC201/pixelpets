@@ -1,6 +1,6 @@
 // The --shot preview window has to cover the preview canvas.
 //
-// renderer.js's SHOT branch sizes the canvas itself; main.js builds the window that
+// the overlay's SHOT branch sizes the canvas itself; main.js builds the window that
 // gets screen-captured. Those two numbers lived in different files with nothing
 // tying them together, and the window was 20px narrower than the canvas - so every
 // --shot capture silently cropped the right-hand edge, and the missing pixels read
@@ -12,26 +12,20 @@
 // time, which is not available under `node --test`.
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
 
-const ROOT = path.join(__dirname, '..');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+test('the --shot window covers the canvas the overlay draws into', () => {
+  const renderer = require('../src/overlay/parts').readOverlaySource();
+  const main = require('./helpers/sources').readMainSource();   // main.js + src/main/
 
-test('the --shot window covers the canvas renderer.js draws into', () => {
-  const renderer = read(path.join('src', 'renderer.js'));
-  const main = read(path.join('src', 'main.js'));
-
-  // renderer.js: `viewW = 260; viewH = 320; viewDpr = 1;` inside `if (SHOT) {`
+  // the overlay: `viewW = 260; viewH = 320; viewDpr = 1;` inside `if (SHOT) {`
   const canvas = renderer.match(/viewW\s*=\s*(\d+)\s*;\s*viewH\s*=\s*(\d+)\s*;\s*viewDpr\s*=\s*1/);
-  assert.ok(canvas, 'could not find the SHOT canvas size in renderer.js - update this test with it');
+  assert.ok(canvas, 'could not find the SHOT canvas size in the overlay (src/overlay/) - update this test with it');
   const cw = Number(canvas[1]), chh = Number(canvas[2]);
 
-  // main.js: the shared constant the preview window is built from.
-  const declared = main.match(/SHOT_CANVAS\s*=\s*\{\s*w:\s*(\d+),\s*h:\s*(\d+)\s*\}/);
-  assert.ok(declared, 'main.js no longer declares SHOT_CANVAS');
-  assert.strictEqual(Number(declared[1]), cw, 'main.js SHOT_CANVAS.w drifted from the canvas renderer.js creates');
-  assert.strictEqual(Number(declared[2]), chh, 'main.js SHOT_CANVAS.h drifted from the canvas renderer.js creates');
+  // src/main/cli.js: the shared constant the preview window is built from.
+  const { SHOT_CANVAS } = require('../src/main/cli');
+  assert.strictEqual(SHOT_CANVAS.w, cw, 'SHOT_CANVAS.w drifted from the canvas the overlay creates');
+  assert.strictEqual(SHOT_CANVAS.h, chh, 'SHOT_CANVAS.h drifted from the canvas the overlay creates');
 
   // ...and the window is actually built from it, not from a second hard-coded pair.
   assert.match(main, /width:\s*SHOT_CANVAS\.w/, 'the preview window width should come from SHOT_CANVAS');

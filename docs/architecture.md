@@ -50,7 +50,17 @@ pixelpets/
   src/
     main.js                # overlay window, global input hooks, tray + menu,
                            #  scheduler (breaks, reminders, Pomodoro), config IPC
-    renderer.js            # the pet: sprites, palettes, physics, reactions, sound
+    overlay/               # the pet itself: classic scripts sharing one scope,
+                           #  loaded in the order overlay/parts.js lists
+      poses.js             #  canvas setup and the pose sprite tables
+      species.js           #  species tables, sprite builders, baked frames
+      body.js              #  drawing the pet body
+      state.js             #  live state, positioning, one-shot actions
+      play.js              #  fetch, treats, sound hooks
+      climb.js             #  the rope climb
+      visitors.js          #  the butterfly and self-play
+      frame.js             #  the per-frame update and draw
+      input.js             #  event wiring, the contact sheet, startup
     preload.js             # safe IPC bridge for the overlay
     cat-sprite.js          # the role-coded cat, mirrored to site/ for the browser demo
     dog-sprite.js          # the Black Lab, and the poses composed from it
