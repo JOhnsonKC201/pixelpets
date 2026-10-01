@@ -1,10 +1,17 @@
 name: Release
 
-# Tag a version (e.g. `git tag v0.1.0 && git push --tags`) to build the Windows
-# installer and attach it to a GitHub Release.
+# Tag a version (e.g. `git tag v0.5.0 && git push --tags`) to build the Windows
+# installer and the macOS dmg/zip and attach them to a GitHub Release. The tag
+# must match package.json's version; a tag with a suffix (v0.5.0-beta.1)
+# publishes a pre-release.
+#
+# Run it by hand (Actions > Release > Run workflow) for a dry run: everything
+# is built, booted and checksummed against package.json's version, and the
+# files land as a workflow artifact instead of a GitHub Release.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 # Serialize releases, but never cancel a run that may already be uploading
 # artifacts - interrupting a publish can leave a half-created GitHub Release.
@@ -13,11 +20,31 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  check:
+    # Everything that can fail cheaply fails here, before two platform builds
+    # spend twenty minutes producing a release that should not exist.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - name: Tag matches package.json
+        if: github.event_name == 'push'
+        run: node scripts/release-check.js "${{ github.ref_name }}"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
   build-windows:
+    needs: check
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -25,36 +52,39 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm test
       - name: Build NSIS installer
-        run: npm run dist -- --publish never   # build only; the next step publishes
+        run: npm run dist -- --publish never   # build only; the publish step below uploads
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false   # no code-signing cert in CI
+      - name: Boot the packaged app
+        run: node scripts/bootcheck.js --packaged   # dist/win-unpacked, fuses and all
+      - name: Checksums
+        shell: bash
+        run: node scripts/checksums.js dist/SHA256SUMS-windows.txt dist/*.exe dist/*.blockmap dist/latest.yml
+      - name: Keep the dry-run build
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dry-run-windows
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/latest.yml
+            dist/SHA256SUMS-windows.txt
+          retention-days: 7
       - name: Publish release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
+          # latest.yml is the update manifest electron-updater reads; the
+          # installer name in it must match the uploaded file exactly.
           files: |
             dist/*.exe
             dist/*.blockmap
-          body: |
-            ### Install
-
-            **Windows:** run `pixelpets.Setup.*.exe`. SmartScreen will show a blue
-            "Windows protected your PC" screen because the build is not code-signed
-            (a certificate costs real money for a free app). Click **More info**,
-            then **Run anyway**.
-
-            **macOS:** open the `.dmg`, drag the app to Applications, then open it
-            once and allow it in **System Settings > Privacy & Security >
-            Open Anyway**. A double-click will be refused by Gatekeeper first time,
-            for the same reason. (macOS 14 and earlier: right-click > Open works too.)
-
-            Prefer not to? [Play it in your browser](https://pixelcat-jet.vercel.app)
-            or run it from source: `npm install && npm start`.
-
-            The keyboard hook forwards a single "a key was pressed" boolean and never
-            what you typed. See [SECURITY.md](https://github.com/JOhnsonKC201/pixelpets/blob/main/SECURITY.md).
-
+            dist/latest.yml
+            dist/SHA256SUMS-windows.txt
+          body_path: .github/release-notes.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
 
   build-macos:
@@ -66,6 +96,8 @@ jobs:
     # uploading while the Windows release looks perfectly fine.
     needs: build-windows
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -73,34 +105,36 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm test
       - name: Build macOS dmg/zip (unsigned)
         run: npm run dist:mac -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false   # no Developer ID; scripts/adhoc-sign.js seals the bundle instead
+      - name: Boot the packaged app
+        run: node scripts/bootcheck.js --packaged   # the build for this runner's CPU
+      - name: Checksums
+        run: node scripts/checksums.js dist/SHA256SUMS-macos.txt dist/*.dmg dist/*.zip dist/*.blockmap dist/latest-mac.yml
+      - name: Keep the dry-run build
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dry-run-macos
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest-mac.yml
+            dist/SHA256SUMS-macos.txt
+          retention-days: 7
       - name: Publish release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: |
             dist/*.dmg
             dist/*.zip
-          body: |
-            ### Install
-
-            **Windows:** run `pixelpets.Setup.*.exe`. SmartScreen will show a blue
-            "Windows protected your PC" screen because the build is not code-signed
-            (a certificate costs real money for a free app). Click **More info**,
-            then **Run anyway**.
-
-            **macOS:** open the `.dmg`, drag the app to Applications, then open it
-            once and allow it in **System Settings > Privacy & Security >
-            Open Anyway**. A double-click will be refused by Gatekeeper first time,
-            for the same reason. (macOS 14 and earlier: right-click > Open works too.)
-
-            Prefer not to? [Play it in your browser](https://pixelcat-jet.vercel.app)
-            or run it from source: `npm install && npm start`.
-
-            The keyboard hook forwards a single "a key was pressed" boolean and never
-            what you typed. See [SECURITY.md](https://github.com/JOhnsonKC201/pixelpets/blob/main/SECURITY.md).
-
+            dist/*.blockmap
+            dist/latest-mac.yml
+            dist/SHA256SUMS-macos.txt
+          body_path: .github/release-notes.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true

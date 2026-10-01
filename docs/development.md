@@ -49,7 +49,7 @@ every push and pull request.
 
 ```powershell
 npm run pack    # portable build -> dist/win-unpacked/pixelpets.exe (no installer)
-npm run dist    # Windows installer -> dist/pixelpets Setup <version>.exe
+npm run dist    # Windows installer -> dist/pixelpets-Setup-<version>.exe (+ latest.yml)
 ```
 
 `pack` works out of the box. `dist` (the NSIS installer) needs permission to
@@ -142,6 +142,22 @@ same sprite geometry by `scripts/make-demo-gif.js`, in pure Node with no browser
 or GPU. Regenerate any one with
 `node scripts/make-demo-gif.js <hero|gallery|carousel> [mp4]`, or all three with
 `npm run demo:all`.
+
+## Releasing
+
+1. Bump `version` in `package.json` and add a section to `CHANGELOG.md`.
+2. Optional but cheap: **Actions > Release > Run workflow** on the branch. That
+   is a dry run: it builds, boots and checksums both platforms and keeps the
+   files as a workflow artifact, without publishing anything.
+3. Tag and push: `git tag v0.5.0 && git push origin v0.5.0`. A suffix such as
+   `v0.5.0-beta.1` publishes a pre-release.
+
+The workflow refuses a tag that does not match `package.json`, then runs lint and
+the tests before building anything. Each platform's build is booted as packed
+before it is uploaded. Every release carries the installers, the update
+manifests `latest.yml` and `latest-mac.yml` (what an updater reads; the file
+names in them must match the uploads, which `tests/release-scripts.test.js`
+guards), and a `SHA256SUMS-<platform>.txt` per platform.
 
 ## Release hardening
 

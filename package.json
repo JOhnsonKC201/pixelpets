@@ -58,6 +58,14 @@
   "build": {
     "appId": "com.johnsonkc.pixelcat",
     "productName": "pixelpets",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "JOhnsonKC201",
+        "repo": "pixelpets",
+        "releaseType": "release"
+      }
+    ],
     "npmRebuild": false,
     "afterPack": "scripts/adhoc-sign.js",
     "electronFuses": {
@@ -115,7 +123,8 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "pixelpets"
+      "shortcutName": "pixelpets",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     }
   }
 }
