@@ -3,9 +3,15 @@
 // exits. Runs in its own process so a hung socket or library crash can never
 // freeze the overlay. The password is used in-memory only - never logged.
 const { ImapFlow } = require('imapflow');
-const { onJob, reply, exitSoon } = require('./worker-port');
 
+// Turn an ImapFlow error into a sentence the Settings window can show.
 function classify(e) {
+  // A rejected login comes back as the generic message "Command failed" with
+  // the reason in flags, not in the text (checked against Gmail on imapflow
+  // 1.7 and 2.1), so the text search below never saw it.
+  if (e && (e.authenticationFailed || e.serverResponseCode === 'AUTHENTICATIONFAILED')) {
+    return 'Authentication failed - check your email and app-password.';
+  }
   const code = String((e && e.code) || '').toLowerCase();
   const m = String((e && e.message) || e || '').toLowerCase();
   // timeouts first: ImapFlow's connect/greeting timeout uses code CONNECT_TIMEOUT and
@@ -23,6 +29,9 @@ function classify(e) {
   return 'Could not connect to the mailbox.';
 }
 
+// Only when started as a worker. Required from a test, just expose classify.
+if (require.main === module || process.parentPort) {
+const { onJob, reply, exitSoon } = require('./worker-port');
 onJob(async (creds) => {
   const send = reply;
   let client = null;
@@ -79,3 +88,6 @@ onJob(async (creds) => {
 
 // Safety: if no creds arrive, don't hang forever.
 setTimeout(() => process.exit(0), 30000);
+}
+
+module.exports = { classify };
