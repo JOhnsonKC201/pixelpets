@@ -113,8 +113,9 @@ test('every result has an icon and a verb, and the empty query is sectioned', ()
       if (r.action) assert.ok(r.hint, `${q}: an actionable row names its verb`);
     }
   }
-  const sections = [...new Set(suggest('', ctx()).map((r) => r.section))];
-  assert.deepStrictEqual(sections, ['Pinned', 'Today', 'Timers', 'Recent clips', 'Actions']);
+  // `section` is a stable id the launcher keys on; `sectionLabel` is what it shows.
+  const sections = [...new Map(suggest('', ctx()).map((r) => [r.section, r.sectionLabel]))];
+  assert.deepStrictEqual(sections, [['pinned', 'Pinned'], ['today', 'Today'], ['timers', 'Timers'], ['clips', 'Recent clips'], ['actions', 'Actions']]);
   assert.strictEqual(top('gmail').icon, 'link');
   assert.strictEqual(top('proj').icon, 'folder');
   assert.strictEqual(top('=2*3').hint, 'Copy');

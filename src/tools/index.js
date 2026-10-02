@@ -21,6 +21,7 @@ const hotkey = require('./hotkey');
 const { runAction } = require('./actions');
 const { makeLauncher } = require('./launcher-window');
 const { wireMacEditKeys } = require('../mac-edit-keys');
+const i18n = require('../i18n');
 
 const TICK_MS = 30000;
 const CLIP_POLL_MS = 1000;
@@ -41,6 +42,15 @@ let lastHotkey = null;
 let hotkeyWarned = false;
 
 const cfg = () => d.getCfg();
+
+// The user's language: the Settings choice, or on Auto the first of the system's
+// preferred languages that ships a translation. Resolved per call, so changing
+// it in Settings takes effect on the next thing the pet says.
+function systemLanguages() {
+  try { return [...app.getPreferredSystemLanguages(), app.getLocale()]; } catch (e) { return []; }
+}
+const locale = () => i18n.resolveLocale(cfg() && cfg().language, systemLanguages());
+const t = (key, vars) => i18n.translator(locale())(key, vars);
 const notesFile = () => path.join(app.getPath('userData'), 'notes.md');
 
 // Launcher feedback: a short bubble that stays out of the tray history, the OS
@@ -65,7 +75,7 @@ function ctx() {
   return {
     platform: process.platform, search: c.tools.search, shortcuts: c.tools.shortcuts,
     todos: today(), timers, clips, clipboardOn: c.tools.clipboard,
-    keepAwake: system.isKeepAwake(), now: Date.now(),
+    keepAwake: system.isKeepAwake(), now: Date.now(), t,
   };
 }
 
@@ -91,7 +101,9 @@ async function fileIcon(target) {
 async function display(list) {
   return Promise.all(list.map(async (r) => ({
     kind: r.kind, title: r.title, subtitle: r.subtitle || '', checked: !!r.checked, enabled: !!r.action,
-    icon: r.icon, hint: r.hint || '', section: r.section || '', toggle: !!r.toggle,
+    icon: r.icon, hint: r.hint || '', section: r.section || '', sectionLabel: r.sectionLabel || '', toggle: !!r.toggle,
+    // An existing to-do is its own checkbox; "Add to-do: ..." is not.
+    checkbox: !!r.action && r.action.type === 'todoToggle',
     iconData: r.kind === 'shortcut' && ['app', 'folder', 'file'].includes(r.icon) ? await fileIcon(r.subtitle) : null,
   })));
 }
@@ -102,8 +114,12 @@ function suggest(q) {
   return display(cache.list);
 }
 
-// What the launcher needs to dress itself: the pet's current coat and whether to
-// hold still. Custom cat coats travel as their palette.
+// The launcher's own fixed wording, translated here because the window is
+// sandboxed and cannot read the locale files.
+const LAUNCHER_STRINGS = ['placeholder', 'listLabel', 'move', 'run', 'numbers', 'tip', 'tipSelected'];
+
+// What the launcher needs to dress itself: the pet's current coat, whether to
+// hold still, and its wording. Custom cat coats travel as their palette.
 function launcherState() {
   const c = cfg();
   const dog = c.species === 'dog';
@@ -113,6 +129,8 @@ function launcherState() {
   return {
     pet: { species: dog ? 'dog' : 'cat', coat, theme: !dog && coat >= builtins ? themes[coat - builtins] || null : null },
     still: !!c.reducedMotion,
+    lang: locale(),
+    strings: Object.fromEntries(LAUNCHER_STRINGS.map((k) => [k, t(`launcher.${k}`)])),
   };
 }
 
@@ -131,8 +149,8 @@ function armTimers() {
 }
 function fireTimers() {
   const { fired, remaining } = timersLib.due(timers, Date.now());
-  for (const t of fired) {
-    d.notify(`Time's up${t.label ? `: ${t.label}` : ''}!`, { source: 'timer', dedupeMs: 0, ttl: 10000, level: 'alert' });
+  for (const done of fired) {
+    d.notify(done.label ? t('timer.upLabel', { label: done.label }) : t('timer.up'), { source: 'timer', dedupeMs: 0, ttl: 10000, level: 'alert' });
     d.sendAction('companion');
   }
   setTimers(remaining);
@@ -169,7 +187,7 @@ function tick() {
   if (c.tools.todoNudge && todosLib.needsMiddayNudge(todos, now, c.tools.todoNudge)) {
     persistTodos({ ...todos, nudged: todosLib.todayKey(now) });
     const { left } = todosLib.counts(todos);
-    d.notify(left === 1 ? 'One to-do still open today. Want to knock it out?' : '{count} to-dos still open today. Pick one?', { source: 'reminder', count: left });
+    d.notify(t('nudge.todo', { count: left }), { source: 'reminder', count: left });
   }
   if (c.tools.eyeRest) {
     let idle;
@@ -177,7 +195,7 @@ function tick() {
     if (idle) eyeLastAt = now.getTime();   // you were away: the 20 minutes start again when you are back
     else if (eyeRestDue({ lastAt: eyeLastAt, now: now.getTime(), busy: d.isBusy() || d.inQuiet() })) {
       eyeLastAt = now.getTime();
-      d.notify('Eye break: look at something 20 feet away for 20 seconds.', { source: 'eyerest', os: false, dedupeMs: 0 });
+      d.notify(t('nudge.eye'), { source: 'eyerest', os: false, dedupeMs: 0 });
     }
   }
 }
@@ -190,7 +208,7 @@ function onBattery(reading) {
   const r = batteryEdge(batteryArmed, reading);
   batteryArmed = r.armed;
   if (r.alert && cfg().tools.batteryAlert) {
-    d.notify(`Battery at ${Math.round(reading.level * 100)}%. Time to plug me in!`, { source: 'battery', level: 'warn', dedupeMs: 0 });
+    d.notify(t('nudge.battery', { pct: Math.round(reading.level * 100) }), { source: 'battery', level: 'warn', dedupeMs: 0 });
   }
 }
 
@@ -206,7 +224,7 @@ function applyHotkey(accel) {
   const ok = hotkey.apply(accel, toggle);
   if (!ok && !hotkeyWarned) {
     hotkeyWarned = true;
-    d.notify(`I couldn't grab ${hotkey.label(accel)} (another app has it). Right-click me instead, or pick another key in Settings > Tools.`,
+    d.notify(t('hotkey.taken', { key: hotkey.label(accel) }),
       { source: 'tips', os: false, ttl: 9000, dedupeMs: 0 });
   }
   d.rebuildTray();
@@ -251,7 +269,7 @@ function registerIpc() {
 }
 
 const api = {
-  cfg, say, notify: (...a) => d.notify(...a), persistTools, persistTodos, today,
+  cfg, say, t, notify: (...a) => d.notify(...a), persistTools, persistTodos, today,
   timers: () => timers, setTimers, clips: () => clips, rememberClip: (t) => { lastClip = t; },
   notesFile, sendAction: (id) => d.sendAction(id), triggerBreak: () => d.triggerBreak(),
   openSettings: () => d.openSettings(), rebuildTray: () => d.rebuildTray(),

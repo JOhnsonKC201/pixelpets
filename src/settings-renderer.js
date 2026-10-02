@@ -493,6 +493,7 @@ function renderTools() {
   $('toolsHotkey').value = t.hotkey || 'CommandOrControl+Shift+Space';
   $('toolsRightClick').checked = t.rightClick !== false;
   $('toolsSearch').value = t.search || 'google';
+  $('language').value = cfg.language || 'auto';
   $('toolsClipboard').checked = !!t.clipboard;
   $('toolsBattery').checked = t.batteryAlert !== false;
   $('toolsEyeRest').checked = !!t.eyeRest;
@@ -510,6 +511,7 @@ function renderTools() {
 $('toolsHotkey').addEventListener('change', () => saveTools({ hotkey: $('toolsHotkey').value }));
 $('toolsRightClick').addEventListener('change', () => saveTools({ rightClick: $('toolsRightClick').checked }));
 $('toolsSearch').addEventListener('change', () => saveTools({ search: $('toolsSearch').value }));
+$('language').addEventListener('change', () => save({ language: $('language').value }));
 $('toolsClipboard').addEventListener('change', () => saveTools({ clipboard: $('toolsClipboard').checked }));
 $('toolsBattery').addEventListener('change', () => saveTools({ batteryAlert: $('toolsBattery').checked }));
 $('toolsEyeRest').addEventListener('change', () => saveTools({ eyeRest: $('toolsEyeRest').checked }));

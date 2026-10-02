@@ -6,6 +6,7 @@ The [README](../README.md) is the tour. These are the details it links out to.
 |---|---|
 | [features.md](features.md) | Every interaction, coat, mood, sound, and productivity feature |
 | [custom-coats.md](custom-coats.md) | Designing, hand-editing, and sharing your own coat |
+| [i18n.md](i18n.md) | Which parts are translated, fixing a word, adding a language |
 | [architecture.md](architecture.md) | How one sprite covers 15 coats, and the project layout |
 | [development.md](development.md) | Running from source, building installers, visual QA |
 | [frame-pack.md](frame-pack.md) | Painting a pose by hand and importing it |

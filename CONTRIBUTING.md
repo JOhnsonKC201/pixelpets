@@ -38,6 +38,7 @@ The [development guide](docs/development.md) covers the day-to-day commands. The
 
 ## Good places to start
 
+- **Speak another language?** Quick Tools is translated into seven languages that no native speaker has reviewed yet. Fixing a word is a one-line change to a JSON file; [docs/i18n.md](docs/i18n.md) shows how, and how to add a language.
 - **Own a Mac?** The macOS port is code-complete but untested on real hardware. Running the [beta checklist](docs/development.md#macos-beta-checklist) and reporting what happened is the single most useful contribution right now.
 - **Design a coat** and share it (Settings → Custom coats → Export). Great ones can become built-ins.
 - Anything labeled [good first issue](https://github.com/JOhnsonKC201/pixelpets/labels/good%20first%20issue) or [help wanted](https://github.com/JOhnsonKC201/pixelpets/labels/help%20wanted).

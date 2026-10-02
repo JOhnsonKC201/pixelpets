@@ -4,6 +4,11 @@ Notable changes to **pixelpets**. All art and sound are original/procedural (no 
 
 ## [Unreleased]
 
+### Languages
+- **Quick Tools in eight languages.** The launcher, and everything the pet says about timers, to-dos, notes, the clipboard and the battery, now reads in English, Spanish, French, German, Brazilian Portuguese, Hindi, Japanese or Simplified Chinese. It follows the first of your system's preferred languages that has a translation; Settings > Tools > Language overrides that. Settings and the tray menu are still English only.
+- **What you type did not change.** `todo`, `note`, `done 2`, `10m tea` and `g cats` work the same everywhere, and every command still answers to its English name under any language.
+- **Translations are plain data.** One JSON file per language in `src/locales/`, with English as the reference. Tests fail a file that is missing a sentence, has one English does not, or drops a `{placeholder}`, and a missing sentence falls back to English instead of showing a key. The seven new files were written without a native-speaker review; [docs/i18n.md](docs/i18n.md) shows how to correct a word or add a language.
+
 ### Crash logs and Report a problem
 - **A local diagnostic log.** Errors used to go to `console.log`, which a packaged app throws away, so a crash left nothing behind. They now land in `logs/pixelpets.log` in the app-data folder: JSON lines, written in batches, three files of at most 1 MB (the current one and two rotated). Emails, links, tokens and your user name inside file paths are redacted before anything is written.
 - **Crashes are caught, not fatal.** Uncaught exceptions, unhandled rejections, a dead overlay and dead helper processes are logged. An uncaught exception also gets one "I tripped, but I'm okay" bubble pointing at Report a problem.

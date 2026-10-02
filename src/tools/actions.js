@@ -5,26 +5,32 @@
 // `api` is the registry's view of the world (tools/index.js):
 //   cfg(), say(text, opts), notify(...), persistTools(patch), persistTodos(todos),
 //   today(), timers / setTimers(list), clips(), rememberClip(text), notesFile(),
-//   sendAction(id), triggerBreak(), openSettings(), rebuildTray()
+//   sendAction(id), triggerBreak(), openSettings(), rebuildTray(),
+//   t(key, vars): the user's language (English when a caller has none)
 
 const system = require('./system');
 const timersLib = require('./timers');
 const todosLib = require('./todos');
+const { translator, FALLBACK } = require('../i18n');
 
-const fail = (api, r) => { if (r && !r.ok && r.message) api.say(r.message, { level: 'warn' }); };
+const EN = translator(FALLBACK);
+const tr = (api) => (typeof api.t === 'function' ? api.t : EN);
+// system.js reports a result as a message key, so it is said in the user's language.
+const told = (api, r) => (r && r.key ? tr(api)(r.key, r.vars) : r && r.message);
+const fail = (api, r) => { if (r && !r.ok && told(api, r)) api.say(told(api, r), { level: 'warn' }); };
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const RUNNERS = {
   copy(api, a) {
     system.copyText(a.text);
-    api.say(`Copied ${a.text}`);
+    api.say(tr(api)('say.copied', { text: a.text }));
   },
   async search(api, a) {
     fail(api, await system.openSearch(a.engine, a.query));
   },
   async note(api, a) {
     const r = await system.appendNote(api.notesFile(), a.text);
-    if (r.ok) api.say('Noted. Type "open notes" any time to read them.');
+    if (r.ok) api.say(tr(api)('say.noted'));
     else fail(api, r);
   },
   async openNotes(api) {
@@ -33,12 +39,12 @@ const RUNNERS = {
   todoAdd(api, a) {
     const r = todosLib.add(api.today(), a.text);
     if (!r.ok) {
-      api.say(r.reason === 'full' ? 'Five is plenty for one day. Finish one first!' : 'That to-do was empty.');
+      api.say(tr(api)(r.reason === 'full' ? 'say.todo.full' : 'say.todo.empty'));
       return;
     }
     api.persistTodos(r.state);
     const { left } = todosLib.counts(r.state);
-    api.say(`Added. ${left} to do today.`);
+    api.say(tr(api)('say.todo.added', { count: left }));
   },
   todoToggle(api, a) {
     const before = api.today();
@@ -49,21 +55,22 @@ const RUNNERS = {
     if (!item || !item.done) return;
     const { left } = todosLib.counts(next);
     api.sendAction('play');
-    api.say(left ? `Nice! ${left} left.` : 'All done for today!', { sound: true });
+    api.say(left ? tr(api)('say.todo.left', { count: left }) : tr(api)('say.todo.allDone'), { sound: true });
   },
   timerStart(api, a) {
     const r = timersLib.add(api.timers(), { now: Date.now(), ms: a.ms, label: a.label });
-    if (!r.ok) { api.say(`${timersLib.MAX_TIMERS} timers at once is my limit.`); return; }
+    if (!r.ok) { api.say(tr(api)('say.timer.limit', { max: timersLib.MAX_TIMERS })); return; }
     api.setTimers(r.list);
-    api.say(`Timer set: ${timersLib.formatRemaining(a.ms)}${a.label ? ` for ${a.label}` : ''}.`);
+    const time = timersLib.formatRemaining(a.ms);
+    api.say(a.label ? tr(api)('say.timer.setFor', { time, label: a.label }) : tr(api)('say.timer.set', { time }));
   },
   timerCancel(api, a) {
     api.setTimers(timersLib.cancel(api.timers(), a.id));
-    api.say('Timer cancelled.');
+    api.say(tr(api)('say.timer.cancelled'));
   },
   async openShortcut(api, a) {
     const sc = (api.cfg().tools.shortcuts || []).find((s) => s.id === a.id);
-    if (!sc) { api.say('That shortcut is gone.'); return; }
+    if (!sc) { api.say(tr(api)('say.shortcut.gone')); return; }
     fail(api, await system.openTarget(sc.target));
   },
   clip(api, a) {
@@ -71,14 +78,14 @@ const RUNNERS = {
     if (typeof text !== 'string') return;
     api.rememberClip(text);   // so the poller does not count our own write as a new copy
     system.copyText(text);
-    api.say('Copied. Paste it where you want.');
+    api.say(tr(api)('say.clip.copied'));
   },
   async system(api, a) {
     switch (a.what) {
       case 'snip': {
         await pause(150);   // let the launcher finish hiding so it is not in the shot
         const r = await system.snip();
-        if (r.ok && r.message) api.say(r.message); else fail(api, r);
+        if (r.ok && told(api, r)) api.say(told(api, r)); else fail(api, r);
         return;
       }
       case 'lock':
@@ -87,13 +94,13 @@ const RUNNERS = {
       case 'keepAwake': {
         const on = system.setKeepAwake(!system.isKeepAwake());
         api.rebuildTray();
-        api.say(on ? 'Keeping the screen awake. Turn it off from the tray or here.' : 'The screen can sleep again.');
+        api.say(tr(api)(on ? 'say.awake.on' : 'say.awake.off'));
         return;
       }
       case 'clipboard': {
         const on = !api.cfg().tools.clipboard;
         api.persistTools({ clipboard: on });
-        api.say(on ? 'Clipboard history on. Kept in memory only, never saved.' : 'Clipboard history off and cleared.');
+        api.say(tr(api)(on ? 'say.clipboard.on' : 'say.clipboard.off'));
         return;
       }
       case 'break': api.triggerBreak(); return;
@@ -109,7 +116,7 @@ async function runAction(api, action) {
   try { await fn(api, action); }
   catch (e) {
     if (api.log) api.log.error(`quick tools action failed: ${action.type}`, e);
-    api.say('Something went wrong there.', { level: 'warn' });
+    api.say(tr(api)('say.error'), { level: 'warn' });
   }
 }
 
