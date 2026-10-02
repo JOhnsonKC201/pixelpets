@@ -31,6 +31,7 @@ function makeReportWindow({ hardenNav, wireMacEditKeys, getInfo, logDir, log }) 
       width: 560, height: 560, minWidth: 420, minHeight: 360, resizable: true,
       fullscreenable: false, maximizable: false, alwaysOnTop: true,
       title: 'Report a problem', show: false, backgroundColor: '#191b22',
+      icon: path.join(__dirname, '..', 'assets', 'icon.png'),   // it had none, so its title bar wore Electron's
       webPreferences: { preload: path.join(__dirname, 'report-preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
     });
     hardenNav(win);

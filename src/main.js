@@ -35,6 +35,7 @@ const { startSoak } = require('./main/soak');
 const { captureShot } = require('./main/shot');
 const { createSettingsWindow } = require('./main/settings-window');
 const { makeUpdater } = require('./main/updater');
+const { fixDevTaskbarIcon } = require('./main/taskbar-identity');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
 // otherwise blocks autoplay until a user gesture.
@@ -715,6 +716,7 @@ app.whenReady().then(() => {
   // installing a second copy alongside. Changing it to match the new product name
   // would strand the existing autostart entry and split upgrades into two installs.
   try { app.setAppUserModelId('com.johnsonkc.pixelcat'); } catch (e) { /* Windows toast identity */ }
+  fixDevTaskbarIcon();   // from source, the taskbar wore Electron's atom (see taskbar-identity.js)
   // Must run before the first read of settings/themes/mail: the pixelcat -> pixelpets
   // rename moved userData, so on an upgrade the files are still under the old name.
   datadir.migrateFromLegacy(app);

@@ -4,6 +4,15 @@ Notable changes to **pixelpets**. All art and sound are original/procedural (no 
 
 ## [Unreleased]
 
+### Settings window
+- **The top of the window is the pet's, not a template's.** The header was a paw emoji on an orange tile next to the name in the system font, with the word "settings" repeated under a title bar that already said it. The mascot now sits on the tab rail the way the pet sits on the taskbar, and the name is set in real pixels on a 4px grid, which stays a whole number of device pixels at 100, 125, 150 and 200% scaling.
+- **Tab icons that belong together.** The six tabs used emoji, which the OS draws: six unrelated full-colour pictures that the rail could only grey out and that looked different on every machine. They are now six 9 x 9 bitmaps in one style that take the tab's own colour. The bitmaps live as rows of text in `scripts/settings-glyphs.js`, and a test fails if the window and that file disagree.
+- **The open tab reads as part of its panel.** It takes the page's colour and covers the rail's bottom line instead of being a tinted button with an underline. Labels are sentence case at 11px rather than 9.5px capitals, and the keyboard focus ring is no longer the same orange as "selected".
+
+### Fixed
+- **The taskbar showed Electron's atom when run from source on Windows.** Windows takes the taskbar icon from a Start Menu shortcut that carries the app's id, and from source the only such shortcut is the `Electron.lnk` that Electron writes for notifications, wearing `electron.exe`'s icon. The window icon and `setAppDetails` both lose to it. The app now puts the mascot on that shortcut at startup, only when it carries this app's id, and leaves an installed build alone.
+- **"Report a problem" had no window icon**, so its title bar wore Electron's as well.
+
 ### Languages
 - **Quick Tools in eight languages.** The launcher, and everything the pet says about timers, to-dos, notes, the clipboard and the battery, now reads in English, Spanish, French, German, Brazilian Portuguese, Hindi, Japanese or Simplified Chinese. It follows the first of your system's preferred languages that has a translation; Settings > Tools > Language overrides that. Settings and the tray menu are still English only.
 - **What you type did not change.** `todo`, `note`, `done 2`, `10m tea` and `g cats` work the same everywhere, and every command still answers to its English name under any language.
