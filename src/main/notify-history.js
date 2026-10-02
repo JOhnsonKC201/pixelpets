@@ -1,7 +1,9 @@
 // Rolling history of the pet's own notifications, so the user can recap what
 // they missed (tray "Recent notifications"). Persisted so it survives a restart.
 const fs = require('fs');
+const { translator, FALLBACK } = require('../i18n');
 
+const EN = translator(FALLBACK);
 const NOTIFY_HISTORY_MAX = 50;
 const SAVE_DEBOUNCE_MS = 1500;
 
@@ -71,13 +73,13 @@ function makeNotifyHistory({ filePath, onChange = () => {} }) {
   return { load, record, clear, recent, flush };
 }
 
-/** "12s ago", "5m ago", "3h ago", "2d ago". */
-function relTime(ts, now = Date.now()) {
+/** "12s ago", "5m ago", "3h ago", "2d ago", in the language of `t` (English without one). */
+function relTime(ts, now = Date.now(), t = EN) {
   const s = Math.max(0, Math.round((now - ts) / 1000));
-  if (s < 60) return s + 's ago';
-  const m = Math.round(s / 60); if (m < 60) return m + 'm ago';
-  const h = Math.round(m / 60); if (h < 24) return h + 'h ago';
-  return Math.round(h / 24) + 'd ago';
+  if (s < 60) return t('ago.s', { n: s });
+  const m = Math.round(s / 60); if (m < 60) return t('ago.m', { n: m });
+  const h = Math.round(m / 60); if (h < 24) return t('ago.h', { n: h });
+  return t('ago.d', { n: Math.round(h / 24) });
 }
 
 module.exports = { makeNotifyHistory, relTime, NOTIFY_HISTORY_MAX };

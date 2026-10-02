@@ -162,12 +162,12 @@ today's to-dos, running timers and a few one-press actions.
 If another app already owns the hotkey, the pet tells you once; pick another
 key in Settings > Tools or turn it off and use right-click.
 
-**Languages.** Quick Tools, and what the pet says about it, speaks English,
+**Languages.** Quick Tools, what the pet says about it, and the tray menu speak English,
 Spanish, French, German, Brazilian Portuguese, Hindi, Japanese and Simplified
 Chinese. It follows your system language, or the one you pick in Settings >
 Tools > Language. The words you type (`todo`, `note`, `done`, `timer`, `g`) are
 the same in every language, and a command still answers to its English name, so
-a tip written in English works anywhere. Settings and the tray menu are still
+a tip written in English works anywhere. The Settings window is still
 English only; see [i18n.md](i18n.md).
 
 ### Focus Guard
