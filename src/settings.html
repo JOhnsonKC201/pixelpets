@@ -31,43 +31,70 @@
     /* header + tabs travel together, so the tab rail needs no magic top offset */
     .top { position: sticky; top: 0; z-index: 5; }
 
-    /* sticky header bar - game-HUD feel */
+    /* Read by screen readers, drawn by nothing: the wordmark is a picture of text. */
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+    /* masthead - the mascot sits on the tab rail the way the pet sits on the
+       taskbar, and the name is set in real pixels (scripts/settings-glyphs.js). */
     .hdr {
-      display: flex; align-items: center; gap: 9px;
-      padding: 13px 16px;
-      background: linear-gradient(180deg, #1e2027, #181a20);
-      border-bottom: 1px solid #0f1116;
+      position: relative; display: flex; align-items: center;
+      height: 60px; padding: 0 16px;
+      background:
+        radial-gradient(120px 78px at 89% 62%, rgba(255,186,110,.42), transparent 72%),
+        linear-gradient(180deg, #1f2129, #15171d);
     }
-    .hdr .paw {
-      width: 24px; height: 24px; flex: none; display: grid; place-items: center;
-      background: var(--accent); color: #1a1c22; border-radius: 7px;
-      box-shadow: 0 0 0 2px #0f1116, 2px 2px 0 rgba(0,0,0,.4); font-size: 14px;
+    /* a dither that thickens toward the mascot, so the light behind it has grain */
+    .hdr::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background: conic-gradient(rgba(255,255,255,.035) 25%, transparent 0 50%, rgba(255,255,255,.035) 0 75%, transparent 0) 0 0 / 8px 8px;
+      -webkit-mask-image: linear-gradient(90deg, transparent 42%, #000);
+              mask-image: linear-gradient(90deg, transparent 42%, #000);
     }
-    .hdr b { font-size: 14px; letter-spacing: .3px; }
-    .hdr b i { color: var(--accent); font-style: normal; }
-    .hdr .tag { margin-left: auto; color: var(--faint); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+    .word { position: relative; margin: 0; line-height: 0; }
+    /* 4px a cell: a whole number of device pixels at 100, 125, 150 and 200% scaling,
+       so no stroke of a letter comes out a pixel fatter than its neighbour. */
+    .word svg { display: block; width: 144px; height: 36px; shape-rendering: crispEdges; filter: drop-shadow(2px 2px 0 rgba(0,0,0,.5)); }
+    .word .px { fill: var(--accent); }
+    .word .pt { fill: var(--fg); }
+    .mascot {
+      position: absolute; right: 14px; bottom: -7px; z-index: 2;   /* paws hang over the rail */
+      width: 62px; height: 62px; pointer-events: none;
+      filter: drop-shadow(0 3px 0 rgba(0,0,0,.4)) drop-shadow(0 0 5px rgba(255,196,128,.3));
+      animation: sit 3.2s steps(1, end) infinite;
+    }
+    /* two frames, like a sprite: held, then one step up, never a tween */
+    @keyframes sit { 0%, 100% { transform: none; } 50% { transform: translateY(-2px); } }
+    @media (prefers-reduced-motion: reduce) { .mascot { animation: none; } }
 
     /* section rail - 11 cards in one scroll was a 6x blind scroll with nothing to
-       aim at; the rail turns "keep scrolling and hope" into one click. */
+       aim at; the rail turns "keep scrolling and hope" into one click. The open
+       tab takes the page's own colour and covers the rail's bottom line, so it
+       reads as the top edge of the panel beneath it rather than a lit button. */
     .tabs {
-      display: grid; grid-template-columns: repeat(6, 1fr);
-      background: linear-gradient(180deg, #1a1c23, #15171d);
-      border-bottom: 2px solid #0f1116; box-shadow: 0 3px 0 rgba(0,0,0,.3);
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px;
+      padding: 6px 6px 0;
+      background: #111318;
+      box-shadow: inset 0 -2px 0 #08090c;
     }
     .tab {
-      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
       background: transparent; color: var(--muted);
-      border: 0; border-bottom: 3px solid transparent; border-radius: 0; box-shadow: none;
-      padding: 7px 2px 6px; font: inherit; font-size: 9.5px; font-weight: 700;
-      letter-spacing: .7px; text-transform: uppercase; cursor: pointer;
-      transition: color .12s, background .12s, border-color .12s;
+      border: 0; border-top: 3px solid transparent; border-radius: 0; box-shadow: none;
+      padding: 6px 2px 8px; font: inherit; font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: color .12s, background .12s;
     }
-    .tab .ic { font-size: 15px; line-height: 1; filter: grayscale(.6) opacity(.7); transition: filter .12s; }
-    .tab:hover { color: var(--fg); background: rgba(255,255,255,.045); }
+    .tab .ic { display: block; width: 18px; height: 18px; fill: currentColor; shape-rendering: crispEdges; transition: transform .1s steps(2, end); }
+    .tab:hover { color: var(--fg); background: rgba(255,255,255,.04); }
+    .tab:hover .ic { transform: translateY(-2px); }
     .tab:active { transform: none; box-shadow: none; }          /* not a chunky push-button */
-    .tab:focus-visible { outline-offset: -3px; }
-    .tab[aria-selected="true"] { color: var(--accent); background: rgba(232,148,60,.1); border-bottom-color: var(--accent); }
-    .tab[aria-selected="true"] .ic { filter: none; }
+    /* inside the tab and not accent-coloured, so it cannot be mistaken for "selected" */
+    .tab:focus-visible { outline: 2px solid rgba(236,238,243,.6); outline-offset: -5px; }
+    .tab[aria-selected="true"] {
+      color: var(--fg); background: var(--bg); border-top-color: var(--accent);
+      box-shadow: -2px 0 0 #08090c, 2px 0 0 #08090c;
+    }
+    .tab[aria-selected="true"] .ic { color: var(--accent); transform: none; }
+    @media (prefers-reduced-motion: reduce) { .tab .ic { transition: none; } }
 
     .wrap { padding: 14px 16px 0; }
 
@@ -203,18 +230,20 @@
 <body>
   <div class="top">
     <div class="hdr">
-      <span class="paw">🐾</span>
-      <b><i>pixel</i>pets</b>
-      <span class="tag">settings</span>
+      <h1 class="word">
+        <svg viewBox="0 0 36 9" aria-hidden="true"><path class="px" d="M5 0h1v1h-1zM16 0h1v1h-1zM16 1h1v1h-1zM0 2h3v1h-3zM5 2h1v1h-1zM7 2h1v1h-1zM9 2h1v1h-1zM12 2h2v1h-2zM16 2h1v1h-1zM0 3h1v1h-1zM3 3h1v1h-1zM5 3h1v1h-1zM7 3h1v1h-1zM9 3h1v1h-1zM11 3h1v1h-1zM14 3h1v1h-1zM16 3h1v1h-1zM0 4h1v1h-1zM3 4h1v1h-1zM5 4h1v1h-1zM8 4h1v1h-1zM11 4h4v1h-4zM16 4h1v1h-1zM0 5h1v1h-1zM3 5h1v1h-1zM5 5h1v1h-1zM7 5h1v1h-1zM9 5h1v1h-1zM11 5h1v1h-1zM16 5h1v1h-1zM0 6h3v1h-3zM5 6h1v1h-1zM7 6h1v1h-1zM9 6h1v1h-1zM12 6h3v1h-3zM16 6h1v1h-1zM0 7h1v1h-1zM0 8h1v1h-1z"/><path class="pt" d="M29 0h1v1h-1zM29 1h1v1h-1zM18 2h3v1h-3zM24 2h2v1h-2zM28 2h3v1h-3zM33 2h3v1h-3zM18 3h1v1h-1zM21 3h1v1h-1zM23 3h1v1h-1zM26 3h1v1h-1zM29 3h1v1h-1zM32 3h1v1h-1zM18 4h1v1h-1zM21 4h1v1h-1zM23 4h4v1h-4zM29 4h1v1h-1zM33 4h2v1h-2zM18 5h1v1h-1zM21 5h1v1h-1zM23 5h1v1h-1zM29 5h1v1h-1zM35 5h1v1h-1zM18 6h3v1h-3zM24 6h3v1h-3zM29 6h2v1h-2zM32 6h3v1h-3zM18 7h1v1h-1zM18 8h1v1h-1z"/></svg>
+        <span class="sr">pixelpets settings</span>
+      </h1>
+      <img class="mascot" src="../assets/logo-mark.png" alt="" width="62" height="62" />
     </div>
 
     <nav class="tabs" role="tablist" aria-label="Settings sections">
-      <button class="tab" role="tab" id="tab-pet" aria-controls="panel-pet" aria-selected="true" data-panel="pet"><span class="ic" aria-hidden="true">🐾</span>Pet</button>
-      <button class="tab" role="tab" id="tab-play" aria-controls="panel-play" aria-selected="false" data-panel="play"><span class="ic" aria-hidden="true">✨</span>Play</button>
-      <button class="tab" role="tab" id="tab-sound" aria-controls="panel-sound" aria-selected="false" data-panel="sound"><span class="ic" aria-hidden="true">🔊</span>Sound</button>
-      <button class="tab" role="tab" id="tab-focus" aria-controls="panel-focus" aria-selected="false" data-panel="focus"><span class="ic" aria-hidden="true">⏱️</span>Focus</button>
-      <button class="tab" role="tab" id="tab-feeds" aria-controls="panel-feeds" aria-selected="false" data-panel="feeds"><span class="ic" aria-hidden="true">📬</span>Feeds</button>
-      <button class="tab" role="tab" id="tab-tools" aria-controls="panel-tools" aria-selected="false" data-panel="tools"><span class="ic" aria-hidden="true">🧰</span>Tools</button>
+      <button class="tab" role="tab" id="tab-pet" aria-controls="panel-pet" aria-selected="true" data-panel="pet"><svg class="ic" viewBox="0 0 9 9" aria-hidden="true"><path d="M3 0h1v1h-1zM5 0h1v1h-1zM1 1h1v1h-1zM3 1h1v1h-1zM5 1h1v1h-1zM7 1h1v1h-1zM1 2h1v1h-1zM7 2h1v1h-1zM3 3h3v1h-3zM2 4h5v1h-5zM1 5h7v1h-7zM1 6h7v1h-7zM2 7h2v1h-2zM5 7h2v1h-2z"/></svg>Pet</button>
+      <button class="tab" role="tab" id="tab-play" aria-controls="panel-play" aria-selected="false" data-panel="play"><svg class="ic" viewBox="0 0 9 9" aria-hidden="true"><path d="M4 0h1v1h-1zM4 1h1v1h-1zM3 2h3v1h-3zM2 3h5v1h-5zM0 4h9v1h-9zM2 5h5v1h-5zM3 6h3v1h-3zM4 7h1v1h-1zM4 8h1v1h-1z"/></svg>Play</button>
+      <button class="tab" role="tab" id="tab-sound" aria-controls="panel-sound" aria-selected="false" data-panel="sound"><svg class="ic" viewBox="0 0 9 9" aria-hidden="true"><path d="M4 0h1v1h-1zM3 1h2v1h-2zM7 1h1v1h-1zM0 2h5v1h-5zM8 2h1v1h-1zM0 3h5v1h-5zM6 3h1v1h-1zM8 3h1v1h-1zM0 4h5v1h-5zM6 4h1v1h-1zM8 4h1v1h-1zM0 5h5v1h-5zM6 5h1v1h-1zM8 5h1v1h-1zM0 6h5v1h-5zM8 6h1v1h-1zM3 7h2v1h-2zM7 7h1v1h-1zM4 8h1v1h-1z"/></svg>Sound</button>
+      <button class="tab" role="tab" id="tab-focus" aria-controls="panel-focus" aria-selected="false" data-panel="focus"><svg class="ic" viewBox="0 0 9 9" aria-hidden="true"><path d="M1 0h7v1h-7zM1 1h1v1h-1zM7 1h1v1h-1zM2 2h5v1h-5zM3 3h3v1h-3zM4 4h1v1h-1zM3 5h1v1h-1zM5 5h1v1h-1zM2 6h1v1h-1zM4 6h1v1h-1zM6 6h1v1h-1zM1 7h1v1h-1zM3 7h3v1h-3zM7 7h1v1h-1zM1 8h7v1h-7z"/></svg>Focus</button>
+      <button class="tab" role="tab" id="tab-feeds" aria-controls="panel-feeds" aria-selected="false" data-panel="feeds"><svg class="ic" viewBox="0 0 9 9" aria-hidden="true"><path d="M0 1h9v1h-9zM0 2h2v1h-2zM7 2h2v1h-2zM0 3h1v1h-1zM2 3h1v1h-1zM6 3h1v1h-1zM8 3h1v1h-1zM0 4h1v1h-1zM3 4h1v1h-1zM5 4h1v1h-1zM8 4h1v1h-1zM0 5h1v1h-1zM4 5h1v1h-1zM8 5h1v1h-1zM0 6h1v1h-1zM8 6h1v1h-1zM0 7h9v1h-9z"/></svg>Feeds</button>
+      <button class="tab" role="tab" id="tab-tools" aria-controls="panel-tools" aria-selected="false" data-panel="tools"><svg class="ic" viewBox="0 0 9 9" aria-hidden="true"><path d="M3 1h3v1h-3zM2 2h1v1h-1zM6 2h1v1h-1zM0 3h9v1h-9zM0 4h1v1h-1zM8 4h1v1h-1zM0 5h9v1h-9zM0 6h1v1h-1zM4 6h1v1h-1zM8 6h1v1h-1zM0 7h1v1h-1zM8 7h1v1h-1zM0 8h9v1h-9z"/></svg>Tools</button>
     </nav>
   </div>
 

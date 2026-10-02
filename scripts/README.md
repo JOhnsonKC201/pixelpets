@@ -44,6 +44,7 @@ Node, with no browser and no GPU.
 | `make-social-card.js` | `npm run social` | `assets/social-card.png`, the GitHub and link-preview card. |
 | `make-logo-icons.js` | `npm run icon` | Every app and tray icon, from the master `assets/logo.png`. |
 | `logo-source.js` | library | Loads and rescales `logo.png`, and decodes PNGs for the climb slicer. |
+| `settings-glyphs.js` | `node scripts/settings-glyphs.js` | Prints the SVG paths for the settings wordmark and tab icons, to paste into `src/settings.html`. A test fails if the two disagree. |
 
 ## Sprite tooling
 

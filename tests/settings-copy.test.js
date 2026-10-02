@@ -112,7 +112,51 @@ test('the window no longer calls itself pixelcat', () => {
   const header = /<div class="hdr">[\s\S]*?<\/div>/.exec(html);
   assert.ok(header, 'settings header is gone');
   assert.doesNotMatch(header[0], /pixelcat/i);
-  assert.match(header[0], /pixel<\/i>pets/);
+  // The name is drawn as pixels now, so the words a screen reader gets are the
+  // only text left in the header.
+  assert.match(header[0], /<span class="sr">pixelpets settings<\/span>/);
+});
+
+test('the masthead shows the mascot, from a file that ships', () => {
+  // The header used to be a paw emoji on an orange tile while the title bar an inch
+  // above it showed the real mascot.
+  const src = /<img class="mascot" src="([^"]+)"/.exec(html);
+  assert.ok(src, 'the mascot is gone from the settings header');
+  assert.ok(fs.existsSync(path.join(SRC, src[1])), `${src[1]} does not exist`);
+  // electron-builder packs assets/**, and the CSP only allows images from the app.
+  assert.ok(src[1].startsWith('../assets/'), `${src[1]} is outside assets/, so a build would not ship it`);
+});
+
+test('the wordmark and tab icons are the bitmaps in scripts/settings-glyphs.js', () => {
+  // The paths are pasted into the HTML, so an icon redrawn in one place and not the
+  // other would ship the old drawing with nothing to say so.
+  const glyphs = require('../scripts/settings-glyphs.js');
+  const mark = glyphs.wordmark();
+  assert.ok(html.includes(`viewBox="0 0 ${mark.width} ${mark.height}"`), 'the wordmark viewBox is stale');
+  assert.ok(html.includes(`d="${mark.pixel}"`), '"pixel" in the wordmark is stale');
+  assert.ok(html.includes(`d="${mark.pets}"`), '"pets" in the wordmark is stale');
+
+  const icons = glyphs.iconPaths();
+  const tabs = [...html.matchAll(/<button class="tab"[^>]*data-panel="(\w+)"[^>]*>(.*?)<\/button>/g)];
+  assert.ok(tabs.length >= 2, 'the section rail vanished');
+  for (const [, key, inner] of tabs) {
+    assert.ok(icons[key], `tab "${key}" has no bitmap`);
+    assert.ok(inner.includes(`d="${icons[key]}"`), `the "${key}" icon is stale; run node scripts/settings-glyphs.js`);
+    // Emoji are drawn by the OS: six unrelated full-colour pictures that the rail
+    // could not tint and that changed with the machine.
+    assert.doesNotMatch(inner, /\p{Extended_Pictographic}/u, `tab "${key}" is back to an emoji`);
+  }
+});
+
+test('every icon bitmap is a full square, so none is drawn stretched', () => {
+  const { ICONS, ICON_SIZE } = require('../scripts/settings-glyphs.js');
+  for (const [key, rows] of Object.entries(ICONS)) {
+    assert.equal(rows.length, ICON_SIZE, `${key} has ${rows.length} rows`);
+    for (const row of rows) {
+      assert.equal(row.length, ICON_SIZE, `${key} has a row of ${row.length} cells`);
+      assert.match(row, /^[X.]+$/, `${key} has a bad row "${row}"`);
+    }
+  }
 });
 
 test('the dog preview reads its sprite tables the only way they exist', () => {
