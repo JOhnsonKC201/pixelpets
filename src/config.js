@@ -13,6 +13,7 @@ const { isSpecies, coatsFor, defaultCoatIndex } = require('./pets');
 const { MAX_THEMES } = require('./themes');
 const { normalizeShortcuts } = require('./tools/shortcuts');
 const { normalizeTodos } = require('./tools/todos');
+const { isSupported: isLanguage, AUTO: AUTO_LANGUAGE } = require('./i18n');
 
 // The settings file format. Bump it when a change needs more than normalize()
 // filling in defaults, and add the step that upgrades the previous version.
@@ -32,6 +33,7 @@ const DEFAULT_PATTERN = Math.max(0, PATTERN_NAMES.indexOf('Mackerel Tabby'));
 
 const DEFAULTS = {
   name: '',
+  language: AUTO_LANGUAGE, // 'auto' follows the system; otherwise one of i18n.LANGUAGES
   species: 'cat',      // 'cat' | 'dog' - which pet lives on the desktop
   pattern: DEFAULT_PATTERN,
   dogPattern: defaultCoatIndex('dog'),  // the dog's breed, kept separately so switching
@@ -116,6 +118,7 @@ function normalize(cfg) {
   return {
     schemaVersion: SCHEMA_VERSION,
     name: String(c.name == null ? '' : c.name).trim().slice(0, 24),
+    language: isLanguage(c.language) ? c.language : AUTO_LANGUAGE,
     species: isSpecies(c.species) ? c.species : 'cat',
     pattern: clampInt(c.pattern, 0, MAX_PATTERN, DEFAULT_PATTERN),
     dogPattern: clampInt(c.dogPattern, 0, coatsFor('dog').length - 1, defaultCoatIndex('dog')),

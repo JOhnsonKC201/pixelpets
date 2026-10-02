@@ -2,6 +2,9 @@
 // suggests and sends back only (query, index); main decides what that means.
 // Everything is rendered with textContent / createElement, never innerHTML,
 // because titles can carry text the user typed or copied.
+//
+// Every word shown here arrives from main already translated. Nothing below may
+// decide anything by reading a title or a header: it keys on ids and flags.
 (() => {
   const api = window.launcher;
   const Icons = window.LauncherIcons;
@@ -14,7 +17,15 @@
   // The key that reveals the number shortcuts is called Option on a Mac.
   const MOD = api.platform === 'darwin' ? 'option' : 'alt';
   document.getElementById('modKey').textContent = MOD;
-  const EMPTY_TIP = 'Try =12*7.5, 10m tea, todo …, g …';
+  // The page's own wording. The markup carries the English; main sends the user's
+  // language with every open (onReset).
+  const TEXT = {
+    move: document.getElementById('lblMove'),
+    run: document.getElementById('lblRun'),
+    numbers: document.getElementById('lblNumbers'),
+  };
+  let emptyTip = tip.textContent;
+  let tipSelected = '{hint}: {title}';
 
   let items = [];
   let rows = [];          // row elements, index-aligned with items (section headers excluded)
@@ -38,12 +49,9 @@
     return h;
   }
 
-  // A to-do that already exists is its own checkbox; "Add to-do: ..." is not.
-  const isTodoItem = (item) => item.kind === 'todo' && item.enabled && !/^Add to-do/.test(item.title);
-
   function tile(item) {
     const t = el('span', 'tile');
-    if (isTodoItem(item)) {
+    if (item.checkbox) {
       t.classList.add('bare');
       t.appendChild(el('span', `check${item.checked ? ' on' : ''}`));
     } else if (item.iconData) {
@@ -92,13 +100,13 @@
 
   // A titled group of rows. ARIA wants a listbox to hold options or groups, so a
   // section is a role="group" labelled by its visible header.
-  function section(name, groupItems, groupRows) {
+  function section(id, label, groupItems, groupRows) {
     const g = el('li', 'grp');
     g.setAttribute('role', 'group');
     const head = el('div', 'sec');
-    head.id = `sec-${name.replace(/\W+/g, '-').toLowerCase()}`;
-    head.appendChild(el('span', null, name));
-    if (name === 'Today') {
+    head.id = `sec-${id.replace(/\W+/g, '-')}`;
+    head.appendChild(el('span', null, label || id));
+    if (id === 'today') {
       const done = groupItems.filter((x) => x.checked).length;
       head.appendChild(el('span', null, `${done} / ${groupItems.length}`));
     }
@@ -115,7 +123,9 @@
     const cur = rows[sel];
     if (cur) { input.setAttribute('aria-activedescendant', cur.id); cur.scrollIntoView({ block: 'nearest' }); }
     const item = items[sel];
-    tip.textContent = input.value && item && item.hint ? `${item.hint}: ${item.title}` : EMPTY_TIP;
+    tip.textContent = input.value && item && item.hint
+      ? tipSelected.replace('{hint}', () => item.hint).replace('{title}', () => item.title)
+      : emptyTip;
   }
 
   function render(next) {
@@ -128,7 +138,7 @@
       if (!name) { nodes.push(rows[i]); i += 1; continue; }
       let j = i;
       while (j < items.length && items[j].section === name) j += 1;
-      nodes.push(section(name, items.slice(i, j), rows.slice(i, j)));
+      nodes.push(section(name, items[i].sectionLabel, items.slice(i, j), rows.slice(i, j)));
       i = j;
     }
     list.replaceChildren(...nodes);
@@ -173,6 +183,17 @@
     } catch (e) { /* a missing coat just leaves the header plain */ }
   }
 
+  function applyStrings(lang, strings) {
+    if (lang) document.documentElement.lang = lang;
+    const s = strings && typeof strings === 'object' ? strings : {};
+    const str = (k) => (typeof s[k] === 'string' && s[k] ? s[k] : null);
+    if (str('placeholder')) input.placeholder = str('placeholder');
+    if (str('listLabel')) list.setAttribute('aria-label', str('listLabel'));
+    for (const [k, node] of Object.entries(TEXT)) if (str(k)) node.textContent = str(k);
+    if (str('tip')) emptyTip = str('tip');
+    if (str('tipSelected')) tipSelected = str('tipSelected');
+  }
+
   input.addEventListener('input', () => { sel = 0; refresh(); });
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Alt') { document.body.classList.add('alt'); return; }
@@ -200,6 +221,7 @@
     void document.body.offsetWidth;   // restart the open animation
     document.body.classList.add('enter');
     drawPet(s.pet);
+    applyStrings(s.lang, s.strings);
     input.value = '';
     sel = 0;
     input.focus();

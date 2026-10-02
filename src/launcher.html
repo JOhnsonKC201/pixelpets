@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none';" />
@@ -65,6 +65,8 @@
     .grp, .grp-rows { list-style: none; margin: 0; padding: 0; }
     .sec { display: flex; justify-content: space-between; padding: 10px 10px 4px; color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
     .grp:first-child .sec { padding-top: 4px; }
+    /* Spaced-out capitals are a Latin habit. Tracking pulls Devanagari apart and does nothing for CJK. */
+    :lang(hi) .sec, :lang(ja) .sec, :lang(zh-CN) .sec { letter-spacing: 0; }
 
     .row { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 11px; padding: 6px 10px 6px 7px; border-radius: 8px; cursor: default; transition: background .08s; }
     .row:hover { background: var(--row-hover); }
@@ -123,9 +125,9 @@
     </div>
     <ul id="list" role="listbox" aria-label="Quick tools"></ul>
     <div class="foot" id="foot">
-      <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
-      <span><kbd>↵</kbd> run</span>
-      <span><kbd id="modKey">alt</kbd> numbers</span>
+      <span><kbd>↑</kbd><kbd>↓</kbd> <span id="lblMove">move</span></span>
+      <span><kbd>↵</kbd> <span id="lblRun">run</span></span>
+      <span><kbd id="modKey">alt</kbd> <span id="lblNumbers">numbers</span></span>
       <span class="tip" id="tip">Try =12*7.5, 10m tea, todo …, g …</span>
     </div>
   </div>

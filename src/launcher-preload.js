@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('launcher', {
   hide: () => ipcRenderer.send('launcher:hide'),
   onReset: (cb) => {
     ipcRenderer.removeAllListeners('launcher:reset');
-    // { pet: { species, coat, theme }, glass, still }: display state only.
+    // { pet: { species, coat, theme }, glass, still, lang, strings }: display state only.
     ipcRenderer.on('launcher:reset', (_e, state) => cb(state));
   },
 });

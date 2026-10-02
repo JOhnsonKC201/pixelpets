@@ -7,8 +7,9 @@
 //     shell, never a string built from input.
 //   - Shortcuts are re-validated right here, right before opening, so a
 //     hand-edited settings.json cannot route around the Settings-time check.
-//   - Every function reports failure as { ok: false, message } instead of
-//     throwing, and the message is written for a person, not a log.
+//   - Every function reports failure as { ok: false, key, vars, message }
+//     instead of throwing. `key` names the sentence in src/locales so the
+//     caller can say it in the user's language; `message` is the English one.
 
 const { shell, powerSaveBlocker, clipboard } = require('electron');
 const { execFile } = require('child_process');
@@ -17,11 +18,16 @@ const path = require('path');
 
 const { validateTarget } = require('./shortcuts');
 const { searchUrl } = require('./commands');
+const { translator, FALLBACK } = require('../i18n');
 
 const EXEC_TIMEOUT_MS = 10000;
 const SNIP_TIMEOUT_MS = 120000;   // macOS screencapture waits while you drag
 const NOTE_MAX = 1000;
 const NOTES_MAX_BYTES = 5 * 1024 * 1024;   // a notes file this big is a runaway, not notes
+
+const EN = translator(FALLBACK);
+const said = (ok, key, vars) => ({ ok, key, ...(vars ? { vars } : {}), message: EN(key, vars) });
+const no = (key, vars) => said(false, key, vars);
 
 const run = (file, args, timeout = EXEC_TIMEOUT_MS) => new Promise((resolve) => {
   execFile(file, args, { timeout, windowsHide: true, shell: false }, (err) => resolve(!err));
@@ -45,21 +51,21 @@ function setKeepAwake(on) {
 async function lockScreen(platform = process.platform) {
   if (platform === 'win32') {
     const rundll = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'rundll32.exe');
-    return (await run(rundll, ['user32.dll,LockWorkStation'])) ? { ok: true } : { ok: false, message: 'I could not lock the screen.' };
+    return (await run(rundll, ['user32.dll,LockWorkStation'])) ? { ok: true } : no('sys.lock.failed');
   }
   if (platform === 'darwin') {
     // CGSession -suspend was removed in Big Sur. Sleeping the display locks the Mac
     // whenever "require password after sleep" is on, which is the default.
-    return (await run('/usr/bin/pmset', ['displaysleepnow'])) ? { ok: true } : { ok: false, message: 'I could not sleep the display.' };
+    return (await run('/usr/bin/pmset', ['displaysleepnow'])) ? { ok: true } : no('sys.sleep.failed');
   }
-  return { ok: false, message: 'Locking is not supported here yet.' };
+  return no('sys.lock.unsupported');
 }
 
 async function snip(platform = process.platform) {
   if (platform === 'win32') {
     // A constant URI for the built-in Snipping Tool, never built from input.
     try { await shell.openExternal('ms-screenclip:'); return { ok: true }; }
-    catch (e) { return { ok: false, message: 'Snipping Tool did not open. Try Win+Shift+S.' }; }
+    catch (e) { return no('sys.snip.failed'); }
   }
   if (platform === 'darwin') {
     // Esc during the drag cancels without an error, so a changed clipboard image is
@@ -69,36 +75,36 @@ async function snip(platform = process.platform) {
     await run('/usr/sbin/screencapture', ['-i', '-c'], SNIP_TIMEOUT_MS);
     const after = clipboard.readImage();
     return after.isEmpty() || after.toDataURL() === before
-      ? { ok: false, message: 'No snip taken.' }
-      : { ok: true, message: 'Snip copied. Paste it anywhere.' };
+      ? no('sys.snip.none')
+      : said(true, 'sys.snip.copied');
   }
-  return { ok: false, message: 'Snipping is not supported here yet.' };
+  return no('sys.snip.unsupported');
 }
 
 // ---- open things ------------------------------------------------------------
 async function openTarget(target) {
   const v = validateTarget(target);
-  if (!v) return { ok: false, message: 'That shortcut is not a web link or a full path.' };
+  if (!v) return no('sys.target.invalid');
   if (v.kind === 'url') {
     try { await shell.openExternal(v.value); return { ok: true }; }
-    catch (e) { return { ok: false, message: 'Your browser did not open that link.' }; }
+    catch (e) { return no('sys.target.browser'); }
   }
-  if (!fs.existsSync(v.value)) return { ok: false, message: 'That file or folder is gone.' };
+  if (!fs.existsSync(v.value)) return no('sys.target.gone');
   // A Windows .lnk opens whatever it points at, which the check above never saw.
   // Resolve it and hold the real target to the same allowlist (no UNC shares).
   if (process.platform === 'win32' && /\.lnk$/i.test(v.value)) {
     let link;
     try { link = shell.readShortcutLink(v.value); } catch (e) { link = null; }
     const real = link && link.target ? validateTarget(link.target) : null;
-    if (!real || real.kind !== 'path') return { ok: false, message: 'That shortcut points somewhere I will not open.' };
+    if (!real || real.kind !== 'path') return no('sys.target.refused');
   }
   const err = await shell.openPath(v.value);
-  return err ? { ok: false, message: `I could not open it: ${err}` } : { ok: true };
+  return err ? no('sys.target.openFailed', { err }) : { ok: true };
 }
 
 async function openSearch(engine, query) {
   try { await shell.openExternal(searchUrl(engine, query)); return { ok: true }; }
-  catch (e) { return { ok: false, message: 'Your browser did not open.' }; }
+  catch (e) { return no('sys.search.browser'); }
 }
 
 // ---- notes --------------------------------------------------------------------
@@ -111,17 +117,17 @@ function stamp(d) {
 
 async function appendNote(file, text, now = new Date()) {
   const line = String(text || '').replace(/\s+/g, ' ').trim().slice(0, NOTE_MAX);
-  if (!line) return { ok: false, message: 'Nothing to note.' };
+  if (!line) return no('sys.note.empty');
   try {
     await fs.promises.mkdir(path.dirname(file), { recursive: true });
     const exists = fs.existsSync(file);
     if (exists && (await fs.promises.stat(file)).size > NOTES_MAX_BYTES) {
-      return { ok: false, message: 'Your notes file is over 5 MB. Open it and tidy up first.' };
+      return no('sys.note.tooBig');
     }
     await fs.promises.appendFile(file, `${exists ? '' : NOTES_HEADER}- ${stamp(now)} ${line}\n`, 'utf8');
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: 'I could not write to your notes file.' };
+    return no('sys.note.writeFailed');
   }
 }
 
@@ -131,9 +137,9 @@ async function openNotes(file) {
       await fs.promises.mkdir(path.dirname(file), { recursive: true });
       await fs.promises.writeFile(file, NOTES_HEADER, 'utf8');
     }
-  } catch (e) { return { ok: false, message: 'I could not create your notes file.' }; }
+  } catch (e) { return no('sys.notes.createFailed'); }
   const err = await shell.openPath(file);
-  return err ? { ok: false, message: `I could not open your notes: ${err}` } : { ok: true };
+  return err ? no('sys.notes.openFailed', { err }) : { ok: true };
 }
 
 function copyText(text) {
