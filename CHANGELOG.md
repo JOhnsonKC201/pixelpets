@@ -4,6 +4,8 @@ Notable changes to **pixelpets**. All art and sound are original/procedural (no 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-09
+
 ### Settings window
 - **The top of the window is the pet's, not a template's.** The header was a paw emoji on an orange tile next to the name in the system font, with the word "settings" repeated under a title bar that already said it. The mascot now sits on the tab rail the way the pet sits on the taskbar, and the name is set in real pixels on a 4px grid, which stays a whole number of device pixels at 100, 125, 150 and 200% scaling.
 - **Tab icons that belong together.** The six tabs used emoji, which the OS draws: six unrelated full-colour pictures that the rail could only grey out and that looked different on every machine. They are now six 9 x 9 bitmaps in one style that take the tab's own colour. The bitmaps live as rows of text in `scripts/settings-glyphs.js`, and a test fails if the window and that file disagree.
