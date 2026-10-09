@@ -132,6 +132,9 @@ right-click the pet, and a small launcher opens. It is keyboard first: type,
 use the arrows, press Enter. With nothing typed it lists your pinned shortcuts,
 today's to-dos, running timers and a few one-press actions.
 
+- **Not sure what to type?** `?` or `help` lists an example of each tool below.
+  Press Enter on one and its start lands in the box (`todo `, `10m `) for
+  you to finish. "What can I type?" at the bottom of the list does the same.
 - **Pinned shortcuts.** Sites, folders and apps you open every day, added in
   Settings > Tools. Only web and mail links or full local paths can be pinned;
   anything else (`javascript:`, network shares, other URL schemes) is refused.
@@ -155,6 +158,14 @@ today's to-dos, running timers and a few one-press actions.
   in memory only and never written to disk. It skips anything that looks like
   a password, key or token, ignores what you copy while Settings is focused, and is wiped
   when you lock the screen, turn it off or quit.
+- **Fix copied text.** Copy something, then type `upper`, `lower`, `title`,
+  `plain`, `one line` or `count`; `text` lists all six. `plain` drops fonts,
+  colours and links so a paste takes the style of where it lands. `one line`
+  joins a paragraph that a PDF or an email broke into short lines. `count`
+  says the words, characters and lines and changes nothing. This is separate
+  from clipboard history and works with it off: the clipboard is read once,
+  when you press Enter, nothing is stored, and neither the launcher nor the
+  pet shows the text. Copied text over 200,000 characters is left alone.
 - **Low battery and eye rest.** The pet speaks up once when a laptop reaches
   20% unplugged (on by default; it re-arms after charging). The optional 20-20-20 nudge reminds you to look away every 20
   minutes, and skips meetings, quiet hours and time you are away.
