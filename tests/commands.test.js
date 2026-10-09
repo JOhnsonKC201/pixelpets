@@ -14,7 +14,7 @@ const ctx = (over = {}) => ({
     { id: 's1', label: 'Gmail', target: 'https://mail.google.com/' },
     { id: 's2', label: 'Projects', target: 'C:\\Projects' },
   ],
-  todos: { day: '2026-9-28', items: [{ id: 't1', text: 'email Dr. Lee', done: false }, { id: 't2', text: 'gym', done: true }], nudged: '' },
+  todos: { day: '2026-9-28', items: [{ id: 't1', text: 'call the bank', done: false }, { id: 't2', text: 'gym', done: true }], nudged: '' },
   timers: [{ id: 'tm1', endsAt: 5 * 60000, label: 'tea' }],
   clips: ['first clip ' + 'z'.repeat(300), 'second'],
   clipboardOn: true,

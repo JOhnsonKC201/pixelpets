@@ -18,29 +18,29 @@ test('redact removes emails, URL paths and queries, secrets and home folders', (
     'fetch https://calendar.google.com/<path> failed');
   assert.strictEqual(redact('GET http://localhost:3000/'), 'GET http://localhost:3000/');
   assert.strictEqual(redact(`token ${fake('ghp_', 'AbCdEfGhIjKlMnOpQrStUvWx0123')} leaked`), 'token <secret> leaked');
-  assert.strictEqual(redact('C:\\Users\\johns\\AppData\\Roaming\\pixelpets\\x.json'), 'C:\\Users\\<user>\\AppData\\Roaming\\pixelpets\\x.json');
+  assert.strictEqual(redact('C:\\Users\\alex\\AppData\\Roaming\\pixelpets\\x.json'), 'C:\\Users\\<user>\\AppData\\Roaming\\pixelpets\\x.json');
   assert.strictEqual(redact('/Users/jane/Library/Application Support/pixelpets'), '/Users/<user>/Library/Application Support/pixelpets');
   assert.strictEqual(redact('plain words stay'), 'plain words stay');
 });
 
 test('the user name is removed whatever shape the path arrives in', () => {
   const forms = [
-    'C:\\Users\\johns\\x',                       // plain Windows
-    JSON.stringify({ p: 'C:\\Users\\johns\\x' }),  // an object that was JSON-escaped on its way in
-    'C:/Users/johns/x',                           // forward slashes
-    '\\\\SERVER\\Users\\johns\\share',            // UNC roaming profile
-    '/Users/johns/Library', '/home/johns/.config',
+    'C:\\Users\\alex\\x',                       // plain Windows
+    JSON.stringify({ p: 'C:\\Users\\alex\\x' }),  // an object that was JSON-escaped on its way in
+    'C:/Users/alex/x',                           // forward slashes
+    '\\\\SERVER\\Users\\alex\\share',            // UNC roaming profile
+    '/Users/alex/Library', '/home/alex/.config',
   ];
-  for (const f of forms) assert.doesNotMatch(redact(f), /johns/, f);
+  for (const f of forms) assert.doesNotMatch(redact(f), /alex/, f);
 });
 
 test('a logged object is redacted after it is serialised', async () => {
   const dir = tmp();
   const log = makeLogger({ dir, echo: false });
-  log.warn('settings write failed', { path: 'C:\\Users\\johns\\AppData\\Roaming\\pixelpets\\settings.json', who: 'bob@example.com' });
+  log.warn('settings write failed', { path: 'C:\\Users\\alex\\AppData\\Roaming\\pixelpets\\settings.json', who: 'bob@example.com' });
   await log.flush();
   const text = fs.readFileSync(path.join(dir, 'pixelpets.log'), 'utf8');
-  assert.doesNotMatch(text, /johns|bob@example/);
+  assert.doesNotMatch(text, /alex|bob@example/);
 });
 
 test('redact caps very long messages', () => {
