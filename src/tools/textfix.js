@@ -17,7 +17,10 @@ const WORD_START = /(^|[^\p{L}\p{M}\p{N}'’])(\p{L})/gu;
 
 const FIXERS = {
   // Writing text back to the clipboard is what drops fonts, colours and links.
-  plain: (s) => s.replace(NBSP, ' ').replace(INVISIBLE, '').replace(/[^\S\r\n]+(?=\r\n|\r|\n|$)/g, ''),
+  // Trailing spaces go line by line with trimEnd: a regex that looks ahead for
+  // the line end rescans a long run of spaces from every position in it, and
+  // this runs in the main process.
+  plain: (s) => s.replace(NBSP, ' ').replace(INVISIBLE, '').replace(/[^\r\n]+/g, (line) => line.trimEnd()),
   upper: (s) => s.toUpperCase(),
   lower: (s) => s.toLowerCase(),
   title: (s) => s.toLowerCase().replace(WORD_START, (m, before, letter) => before + letter.toUpperCase()),

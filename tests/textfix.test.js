@@ -57,6 +57,20 @@ test('nothing copied, too much copied and an unknown fixer are refused, not thro
   assert.deepStrictEqual(apply('rot13', 'abc'), { ok: false, reason: 'unknown' });
 });
 
+test('the largest allowed input is handled in linear time by every fixer', () => {
+  // One enormous run of spaces is the worst case for a backtracking regex, and
+  // a fixer runs in the main process, where a stall freezes the pet.
+  const worst = [`${' '.repeat(MAX_LEN - 1)}x`, `x${' '.repeat(MAX_LEN - 1)}`, 'a '.repeat(MAX_LEN / 2), "a'".repeat(MAX_LEN / 2)];
+  for (const op of OPS) {
+    for (const input of worst) {
+      const started = process.hrtime.bigint();
+      assert.strictEqual(apply(op, input).ok, true);
+      const ms = Number(process.hrtime.bigint() - started) / 1e6;
+      assert.ok(ms < 1500, `${op} took ${Math.round(ms)}ms on ${MAX_LEN} characters`);
+    }
+  }
+});
+
 test('every listed fixer runs', () => {
   assert.deepStrictEqual(OPS, ['plain', 'upper', 'lower', 'title', 'oneline', 'count']);
   for (const op of OPS) assert.strictEqual(apply(op, 'Some Text').ok, true, op);
