@@ -125,7 +125,7 @@ test('"?" and "help" list things to type, and a row fills the box instead of run
   const list = suggest('?', ctx());
   assert.deepStrictEqual(suggest('help', ctx()), list);
   assert.ok(list.length <= MAX_RESULTS);
-  assert.deepStrictEqual(list.map((r) => r.icon), ['calc', 'convert', 'timer', 'todo', 'note', 'search', 'text', 'settings']);
+  assert.deepStrictEqual(list.map((r) => r.icon), ['calc', 'timer', 'todo', 'note', 'snippet', 'search', 'text', 'settings']);
   const fills = list.filter((r) => r.action.type === 'fill');
   assert.strictEqual(fills.length, 7);
   for (const r of fills) {
@@ -177,7 +177,7 @@ test('a help example says which part of it is the command, in every language', (
   for (const code of i18n.CODES) {
     const t = i18n.translator(code);
     const leads = suggest('?', ctx({ t })).map((r) => (r.lead ? r.title.slice(0, r.lead) : ''));
-    assert.deepStrictEqual(leads, ['=', '', '10m', 'todo', 'note', 'g', 'upper', ''], code);
+    assert.deepStrictEqual(leads, ['=', '10m', 'todo', 'note', 'save', 'g', 'upper', ''], code);
     assert.strictEqual(top('todo ', ctx({ t })).lead, 4, `${code}: the waiting row marks it too`);
   }
   assert.ok(!('lead' in top('gmail')), 'ordinary rows carry no lead');

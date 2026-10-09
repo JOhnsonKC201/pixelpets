@@ -15,6 +15,11 @@ const PET_ACTIONS = new Set(['companion', 'give', 'play', 'stretch', 'groom', 'l
 
 // A settings payload bigger than this is junk, not a settings change.
 const MAX_SETTINGS_BYTES = 65536;
+// Parts of the config Settings has no editor for. The window sends back its
+// whole copy of the config on every save, so without this a copy from before
+// you saved a snippet would put the old list back, and a full set of snippets
+// would push every save past the size limit above.
+const NOT_SETTINGS = new Set(['snippets']);
 const COATS_FILE_FILTER = [{ name: 'JSON', extensions: ['json'] }];
 
 /**
@@ -83,8 +88,9 @@ function registerSettingsIpc(d) {
     // config.normalize is the real sanitizer; this caps the in-flight
     // allocation and drops junk payloads.
     if (!partial || typeof partial !== 'object' || Array.isArray(partial)) return getCfg();
-    try { if (JSON.stringify(partial).length > MAX_SETTINGS_BYTES) return getCfg(); } catch (e) { return getCfg(); }
-    persist({ ...getCfg(), ...partial });
+    const mine = Object.fromEntries(Object.entries(partial).filter(([key]) => !NOT_SETTINGS.has(key)));
+    try { if (JSON.stringify(mine).length > MAX_SETTINGS_BYTES) return getCfg(); } catch (e) { return getCfg(); }
+    persist({ ...getCfg(), ...mine });
     return getCfg();
   });
 

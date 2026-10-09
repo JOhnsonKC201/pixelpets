@@ -78,10 +78,10 @@ test('every icon the router asks for is drawn, and icons are built as DOM, not m
     shortcuts: [{ id: 's1', label: 'a', target: 'https://a.com/' }, { id: 's2', label: 'b', target: 'C:\\b' },
       { id: 's3', label: 'c', target: 'C:\\c.exe' }, { id: 's4', label: 'd', target: 'C:\\d.pdf' }, { id: 's5', label: 'e', target: 'mailto:e@x.y' }],
     todos: { day: '', items: [{ id: 't1', text: 'x', done: false }], nudged: '' },
-    timers: [{ id: 'tm1', endsAt: 1000, label: 't' }], clips: ['clip'],
+    timers: [{ id: 'tm1', endsAt: 1000, label: 't' }], clips: ['clip'], snippets: [{ name: 'sig', text: 'x' }],
   };
   const used = new Set();
-  for (const q of ['', '?', 'text', '=1+1', '5 km in mi', 'g x', 'note x', 'todo x', 'done 1', '10m', 'clip', '=bad', 'zzqq']) {
+  for (const q of ['', '?', 'text', ';', ';zz', 'save sig', 'save a;b', 'forget sig', '=1+1', '5 km in mi', 'g x', 'note x', 'todo x', 'done 1', '10m', 'clip', '=bad', 'zzqq']) {
     for (const r of suggest(q, ctx)) used.add(r.icon);
   }
   for (const id of used) assert.ok(have.has(id), `icon "${id}" is missing from launcher-icons.js`);

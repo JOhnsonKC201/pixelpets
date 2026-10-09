@@ -13,6 +13,7 @@ const { isSpecies, coatsFor, defaultCoatIndex } = require('./pets');
 const { MAX_THEMES } = require('./themes');
 const { normalizeShortcuts } = require('./tools/shortcuts');
 const { normalizeTodos } = require('./tools/todos');
+const { normalizeSnippets } = require('./tools/snippets');
 const { isSupported: isLanguage, AUTO: AUTO_LANGUAGE } = require('./i18n');
 
 // The settings file format. Bump it when a change needs more than normalize()
@@ -83,6 +84,9 @@ const DEFAULTS = {
     shortcuts: [],        // [{ id, label, target }] validated by tools/shortcuts.js
   },
   todos: { day: '', items: [], nudged: '' },  // today's list, see tools/todos.js
+  // Saved text, copied back with ";name" in the launcher: [{ name, text }]. Only
+  // the launcher writes it: settings:save drops this key (src/main/settings-ipc.js).
+  snippets: [],
 };
 
 // The launcher hotkeys offered in Settings. A fixed list rather than free text, so
@@ -212,6 +216,7 @@ function normalize(cfg) {
       };
     })(),
     todos: normalizeTodos(c.todos),
+    snippets: normalizeSnippets(c.snippets),
     reminders: reminders.reduce((out, r) => {
       if (!r || typeof r !== 'object') return out;
       const hhmm = String(r.hhmm || '');

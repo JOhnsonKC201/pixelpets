@@ -12,6 +12,7 @@ const system = require('./system');
 const timersLib = require('./timers');
 const todosLib = require('./todos');
 const textfix = require('./textfix');
+const snippetsLib = require('./snippets');
 const { translator, FALLBACK } = require('../i18n');
 
 const EN = translator(FALLBACK);
@@ -20,6 +21,8 @@ const tr = (api) => (typeof api.t === 'function' ? api.t : EN);
 const told = (api, r) => (r && r.key ? tr(api)(r.key, r.vars) : r && r.message);
 const fail = (api, r) => { if (r && !r.ok && told(api, r)) api.say(told(api, r), { level: 'warn' }); };
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Why a snippet was not saved, as the sentence the pet says.
+const SNIPPET_REFUSED = { none: 'say.text.none', big: 'say.snippet.tooBig', secret: 'say.snippet.secret', full: 'say.snippet.full' };
 
 const RUNNERS = {
   copy(api, a) {
@@ -90,6 +93,26 @@ const RUNNERS = {
     api.rememberClip(r.text);   // our own write is not a new copy for clipboard history
     system.copyText(r.text);
     api.say(tr(api)('say.text.done'));
+  },
+  snippet(api, a) {
+    const hit = snippetsLib.find(api.cfg().snippets, a.name);
+    if (!hit) { api.say(tr(api)('say.snippet.gone')); return; }
+    api.rememberClip(hit.text);   // our own write is not a new copy for clipboard history
+    system.copyText(hit.text);
+    api.say(tr(api)('say.snippet.copied', { name: hit.name }));
+  },
+  // The text comes from the clipboard, read here, and is never said back.
+  snippetSave(api, a) {
+    const r = snippetsLib.add(api.cfg().snippets, a.name, system.readText());
+    if (!r.ok) { api.say(tr(api)(SNIPPET_REFUSED[r.reason] || 'say.error', { max: snippetsLib.MAX_SNIPPETS })); return; }
+    api.persistSnippets(r.list);
+    api.say(tr(api)('say.snippet.saved', { name: snippetsLib.cleanName(a.name) }));
+  },
+  snippetForget(api, a) {
+    const hit = snippetsLib.find(api.cfg().snippets, a.name);
+    if (!hit) { api.say(tr(api)('say.snippet.gone')); return; }
+    api.persistSnippets(snippetsLib.remove(api.cfg().snippets, hit.name));
+    api.say(tr(api)('say.snippet.forgot', { name: hit.name }));
   },
   async system(api, a) {
     switch (a.what) {
