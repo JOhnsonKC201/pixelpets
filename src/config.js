@@ -84,9 +84,8 @@ const DEFAULTS = {
     shortcuts: [],        // [{ id, label, target }] validated by tools/shortcuts.js
   },
   todos: { day: '', items: [], nudged: '' },  // today's list, see tools/todos.js
-  // Saved text, copied back with ";name" in the launcher: [{ name, text }]. Top
-  // level, like todos, because Settings saves the whole `tools` object from its
-  // own copy and would overwrite a snippet saved while it was open.
+  // Saved text, copied back with ";name" in the launcher: [{ name, text }]. Only
+  // the launcher writes it: settings:save drops this key (src/main/settings-ipc.js).
   snippets: [],
 };
 

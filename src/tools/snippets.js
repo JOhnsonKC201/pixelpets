@@ -12,15 +12,33 @@ const { SECRET_PATTERNS } = require('./clipboard');
 const MAX_SNIPPETS = 30;
 const MAX_NAME = 24;
 const MAX_TEXT = 2000;
-const NAME = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
+// Marks are allowed after the first character: in Devanagari and other scripts
+// the vowel signs are marks, and a name without them is not a word.
+const NAME = /^[\p{L}\p{N}][\p{L}\p{M}\p{N}_-]*$/u;
 
-// One word, lower-cased, or null.
+// One word, lower-cased, or null. NFKC folds look-alikes (a full-width "ａ")
+// onto the plain letter, so two names that read the same are the same name.
 function cleanName(name) {
-  const n = String(name == null ? '' : name).trim().toLowerCase();
+  const n = String(name == null ? '' : name).normalize('NFKC').trim().toLowerCase();
   return n.length >= 1 && n.length <= MAX_NAME && NAME.test(n) ? n : null;
 }
 
-const looksSecret = (text) => SECRET_PATTERNS.some((re) => re.test(text.trim()));
+// Credentials the token list above does not cover, in shapes specific enough
+// that an address or a sign-off never matches: a connection string with a
+// password in it, a "password: ..." line, and a few more vendors' key prefixes.
+const MORE_SECRETS = [
+  /\b(postgres(ql)?|mysql|mongodb(\+srv)?|redis|amqps?):\/\/[^\s:@/]+:[^\s@]+@/i,
+  /\b(secret|password|passwd|token|api[_-]?key)\s*[:=]\s*\S{6,}/i,
+  /\b[sprk]k_(live|test)_[A-Za-z0-9]{8,}/,      // Stripe
+  /\bglpat-[\w-]{16,}/,                          // GitLab
+  /\bnpm_[A-Za-z0-9]{36}\b/,                     // npm
+  /\bBearer\s+[\w.~+/-]{16,}/,
+];
+
+const looksSecret = (text) => {
+  const t = text.trim();
+  return SECRET_PATTERNS.some((re) => re.test(t)) || MORE_SECRETS.some((re) => re.test(t));
+};
 
 function find(list, name) {
   const n = cleanName(name);

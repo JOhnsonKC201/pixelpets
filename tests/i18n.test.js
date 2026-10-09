@@ -34,7 +34,7 @@ const ctx = (over = {}) => ({
   ...over,
 });
 // Queries a route recognises by shape. What they return cannot depend on wording.
-const ROUTED = ['', '?', 'todo ', 'g ', 'save ', ';', ';tea', 'save tea', 'save a;b', 'forget tea', 'forget nope', '=1+1', '=bad', '5 km in mi', 'g cats', 'note milk', 'todo call', 'done 1', 'done 2', 'done 9', '10m', '10m tea', 'clip'];
+const ROUTED = ['', '?', 'todo ', 'g ', 'save ', ';', ';tea', 'save tea', 'save a;b', 'forget tea', '=1+1', '=bad', '5 km in mi', 'g cats', 'note milk', 'todo call', 'done 1', 'done 2', 'done 9', '10m', '10m tea', 'clip'];
 // Plus the fuzzy list and the search-or-note fallback, which match on titles.
 const QUERIES = [...ROUTED, 'gmail', 'text', 'zzqqxx'];
 

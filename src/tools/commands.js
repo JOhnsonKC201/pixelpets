@@ -194,6 +194,10 @@ const searchItem = (t, engine, query) =>
 // A snippet row with nothing to run: an explanation in the snippet's own colours.
 const snippetNote = (t, titleKey, subKey, vars) => item('info', t(titleKey, vars), t(subKey), null, { icon: 'snippet' });
 
+// Routes that may return more than MAX_RESULTS rows. ";" is the only way to see
+// every snippet, and the launcher list scrolls.
+const ROUTE_LIMIT = Object.freeze({ snippetList: snippetsLib.MAX_SNIPPETS });
+
 // Routes that recognise a specific shape. Each returns a result list or null.
 const ROUTES = [
   function help(q, ctx, t) {
@@ -215,7 +219,7 @@ const ROUTES = [
   // More than one word after it is somebody's sentence, not a name, so it falls
   // through to the list and the web search.
   function snippetSave(q, ctx, t) {
-    const m = /^save\s+(\S+)$/i.exec(q);
+    const m = /^save\s+;?(\S+)$/i.exec(q);
     if (!m) return null;
     const name = snippetsLib.cleanName(m[1]);
     if (!name) return [snippetNote(t, 'snippet.badName.title', 'snippet.badName.sub')];
@@ -226,9 +230,11 @@ const ROUTES = [
     const m = /^forget\s+;?(\S+)$/i.exec(q);
     if (!m) return null;
     const hit = snippetsLib.find(ctx.snippets, m[1]);
+    // With nothing by that name this is an ordinary sentence ("forget password"),
+    // so it is left to the list and the web search.
     return hit
       ? [item('snippet', t('snippet.forget.title', { name: hit.name }), t('snippet.forget.sub'), { type: 'snippetForget', name: hit.name })]
-      : [snippetNote(t, 'snippet.missing.title', 'snippet.missing.sub', { name: m[1].slice(0, snippetsLib.MAX_NAME) })];
+      : null;
   },
   function math(q, ctx, t) {
     if (!q.startsWith('=') && !calc.looksLikeMath(q)) return null;
@@ -291,7 +297,7 @@ function route(query, ctx, t) {
 
   for (const route of ROUTES) {
     const hit = route(q, ctx, t);
-    if (hit) return hit.slice(0, MAX_RESULTS);
+    if (hit) return hit.slice(0, ROUTE_LIMIT[route.name] || MAX_RESULTS);
   }
 
   const pool = [...shortcutItems(ctx), ...todoItems(ctx, t), ...timerItems(ctx, t), ...systemCommands(ctx, t), ...namedCommands(q, t)];

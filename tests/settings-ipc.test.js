@@ -97,3 +97,17 @@ test('themes:add stores the coat and tells every window', () => {
   assert.deepStrictEqual(invoke('themes:add', { name: 'Mint' }), [{ name: 'Mint' }]);
   assert.strictEqual(state.changed, 1);
 });
+
+test('settings:save never touches snippets, which only the launcher writes', () => {
+  const mine = [{ name: 'sig', text: 'Best' }];
+  const { state, invoke } = setup({ name: 'Mochi', snippets: mine });
+  // Settings sends back its whole copy of the config, here one from before a snippet was saved.
+  invoke('settings:save', { name: 'Tofu', snippets: [] });
+  assert.deepStrictEqual(state.saved.at(-1), { name: 'Tofu', snippets: mine });
+  // A full set of snippets is about 60 KB. That must not make an ordinary save look like junk.
+  const full = Array.from({ length: 30 }, (_, i) => ({ name: `n${i}`, text: 'x'.repeat(2000) }));
+  const big = setup({ name: 'Mochi', snippets: full });
+  big.invoke('settings:save', { name: 'Tofu', snippets: full });
+  assert.strictEqual(big.state.saved.at(-1).name, 'Tofu');
+  assert.strictEqual(big.state.saved.at(-1).snippets, full);
+});
