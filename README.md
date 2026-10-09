@@ -95,6 +95,7 @@ Right-click the pet, or press Ctrl+Shift+Space (Cmd+Shift+Space on a Mac) from a
 | `10m tea`, `1h30m` | A timer the pet announces when it's up |
 | `todo call the dentist`, `done 1` | Today's to-dos, five at most. The pet cheers when you tick one off |
 | `note the wifi code is on the fridge` | Adds a line to your notes file |
+| `save sig`, then `;sig` | Keeps the text you copied under a name, and copies it back when you type the name |
 | `=12*7.5`, `5 km in mi`, `72 f to c` | Calculates or converts. Enter copies the answer |
 | `plain`, `upper`, `one line`, `count` | Fixes the text you just copied, ready to paste |
 | `g best pizza near me` | Searches the web |
@@ -139,6 +140,8 @@ Update checks are off until you turn them on in Settings > Tools. Then the app a
 pixelpets keeps a small diagnostic log on your machine (`logs/pixelpets.log` in the app-data folder, three files of at most 1 MB). Emails, links, tokens and your user name inside file paths are removed before a line is written. It's never uploaded. Report a problem, in the tray, shows you the exact text first, and only your browser ever carries it, when you click through to GitHub's issue form.
 
 Clipboard history is off by default. When it's on, it keeps the last 20 things you copied in memory only, skips anything that looks like a password or key, and forgets everything when you lock the screen or quit.
+
+Snippets you save with `save` are different from clipboard history: they are kept, as plain text, in `settings.json`. Text in a known key or token format is refused, but nothing can recognise every password, so don't save one.
 
 Settings are saved to `settings.json` in your app-data folder: `%APPDATA%/pixelpets/` on Windows, `~/Library/Application Support/pixelpets/` on macOS.
 

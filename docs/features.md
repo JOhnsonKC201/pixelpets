@@ -166,6 +166,15 @@ today's to-dos, running timers and a few one-press actions.
   from clipboard history and works with it off: the clipboard is read once,
   when you press Enter, nothing is stored, and neither the launcher nor the
   pet shows the text. Copied text over 200,000 characters is left alone.
+- **Snippets.** Text you type again and again: an address, an email sign-off,
+  a meeting link. Copy it once, type `save sig`, and from then on `;sig` copies
+  it back. `;` on its own lists them all, `save sig` again replaces it with
+  whatever you have copied now, and `forget sig` deletes it. A name is one
+  word, up to 24 letters and digits. You can keep 30, each up to 2,000
+  characters. Unlike clipboard history, snippets are meant to last, so they
+  are written to `settings.json` as plain text. Text in a known key or token
+  format (a private key, a GitHub or AWS token) is refused, but no check
+  recognises every password, so do not save one.
 - **Low battery and eye rest.** The pet speaks up once when a laptop reaches
   20% unplugged (on by default; it re-arms after charging). The optional 20-20-20 nudge reminds you to look away every 20
   minutes, and skips meetings, quiet hours and time you are away.
