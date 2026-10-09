@@ -159,6 +159,8 @@
     try {
       const r = await api.run(input.value, i);
       if (r && r.list) render(r.list);
+      // A help row answers with a starter ("todo ") for you to finish.
+      if (r && typeof r.fill === 'string') { input.value = r.fill; sel = 0; input.focus(); await refresh(); }
     } finally { busy = false; }
   }
 

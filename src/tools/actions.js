@@ -11,6 +11,7 @@
 const system = require('./system');
 const timersLib = require('./timers');
 const todosLib = require('./todos');
+const textfix = require('./textfix');
 const { translator, FALLBACK } = require('../i18n');
 
 const EN = translator(FALLBACK);
@@ -79,6 +80,16 @@ const RUNNERS = {
     api.rememberClip(text);   // so the poller does not count our own write as a new copy
     system.copyText(text);
     api.say(tr(api)('say.clip.copied'));
+  },
+  // Reads the clipboard now, on request, and never passes the text to say():
+  // a bubble on screen is no place for whatever someone just copied.
+  textfix(api, a) {
+    const r = textfix.apply(a.op, system.readText());
+    if (!r.ok) { api.say(tr(api)(r.reason === 'big' ? 'say.text.tooBig' : 'say.text.none')); return; }
+    if (r.stats) { api.say(tr(api)('say.text.count', r.stats), { ttl: 7000 }); return; }
+    api.rememberClip(r.text);   // our own write is not a new copy for clipboard history
+    system.copyText(r.text);
+    api.say(tr(api)('say.text.done'));
   },
   async system(api, a) {
     switch (a.what) {

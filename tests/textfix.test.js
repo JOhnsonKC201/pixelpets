@@ -75,3 +75,39 @@ test('every listed fixer runs', () => {
   assert.deepStrictEqual(OPS, ['plain', 'upper', 'lower', 'title', 'oneline', 'count']);
   for (const op of OPS) assert.strictEqual(apply(op, 'Some Text').ok, true, op);
 });
+
+// The runner in actions.js, with the clipboard stubbed on the system module it
+// calls through. What the pet says must never repeat the copied text.
+test('running a fixer rewrites the clipboard and says so without quoting it', async () => {
+  const system = require('../src/tools/system');
+  const { runAction } = require('../src/tools/actions');
+  const real = { readText: system.readText, copyText: system.copyText };
+  let board = 'my secret plan';
+  const said = [];
+  system.readText = () => board;
+  system.copyText = (s) => { board = s; };
+  const remembered = [];
+  const api = { say: (text) => said.push(text), rememberClip: (text) => remembered.push(text) };
+  try {
+    await runAction(api, { type: 'textfix', op: 'upper' });
+    assert.strictEqual(board, 'MY SECRET PLAN');
+    assert.deepStrictEqual(remembered, ['MY SECRET PLAN'], 'clipboard history is told this write is ours, so it keeps nothing new');
+    await runAction(api, { type: 'textfix', op: 'count' });
+    assert.strictEqual(board, 'MY SECRET PLAN', 'count changes nothing');
+    board = '';
+    await runAction(api, { type: 'textfix', op: 'lower' });
+    assert.strictEqual(board, '');
+    board = 'x'.repeat(MAX_LEN + 1);
+    await runAction(api, { type: 'textfix', op: 'lower' });
+    assert.strictEqual(board.length, MAX_LEN + 1, 'refused text is left as it was');
+  } finally {
+    Object.assign(system, real);
+  }
+  assert.deepStrictEqual(said, [
+    'Done. Paste it where you want.',
+    'Words: 3. Characters: 14. Lines: 1.',
+    'Copy some text first, then ask me again.',
+    'That is too much text for me to handle.',
+  ]);
+  assert.ok(!said.join(' ').toLowerCase().includes('secret'));
+});

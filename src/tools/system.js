@@ -145,5 +145,9 @@ async function openNotes(file) {
 function copyText(text) {
   clipboard.writeText(String(text));
 }
+// Text only. A clipboard holding a picture or files reads as ''.
+function readText() {
+  try { return clipboard.readText(); } catch (e) { return ''; }
+}
 
-module.exports = { isKeepAwake, setKeepAwake, lockScreen, snip, openTarget, openSearch, appendNote, openNotes, copyText, stamp };
+module.exports = { isKeepAwake, setKeepAwake, lockScreen, snip, openTarget, openSearch, appendNote, openNotes, copyText, readText, stamp };

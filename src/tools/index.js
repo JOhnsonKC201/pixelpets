@@ -242,6 +242,8 @@ function registerIpc() {
     if (cache.q !== q) suggest(q);
     const item = cache.list[i];
     if (!item || !item.action) return { close: false };
+    // A help row runs nothing: it hands the launcher a starter to put in its box.
+    if (item.action.type === 'fill') return { close: false, fill: String(item.action.text) };
     if (!item.stay) launcher.hide();
     await runAction(api, item.action);
     return item.stay ? { close: false, list: await suggest(q) } : { close: true };
