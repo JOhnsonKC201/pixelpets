@@ -15,6 +15,7 @@ const calc = require('./calc');
 const units = require('./units');
 const timers = require('./timers');
 const todosLib = require('./todos');
+const textfix = require('./textfix');
 const { preview } = require('./clipboard');
 const { rank } = require('./fuzzy');
 const { translator, FALLBACK } = require('../i18n');
@@ -51,13 +52,71 @@ function matchWords(t, titleKey, keysKey) {
   return words.join(' ');
 }
 
+// A named command the fuzzy list can find by its title or its match words.
+const command = (t, kind) => (title, sub, action, extra, titleKey, keysKey) => {
+  const keys = matchWords(t, titleKey, keysKey);
+  return item(kind, title, sub, action, keys ? { ...extra, keys } : extra);
+};
+
+// Fixers for the text you last copied. The row never shows that text: main reads
+// the clipboard only when one is run.
+const textCommands = (t) => textfix.OPS.map((op) => command(t, 'text')(
+  t(`cmd.text.${op}.title`), t(`cmd.text.${op}.sub`), { type: 'textfix', op }, { icon: 'text' }, `cmd.text.${op}.title`, `cmd.text.${op}.keys`));
+
+// "?" lists things to type. Enter on a row puts its starter in the box (`fill`)
+// instead of running anything, so the list teaches by letting you finish it.
+// A row with no `ex` here takes its example from the locale file. `lead` is the
+// part of the example that is the command ("todo"), which the launcher sets apart
+// from the words that are yours; it is the same in every language.
+const HELP_QUERY = '?';
+const HELP_ROWS = Object.freeze([
+  { id: 'calc', icon: 'calc', ex: '=12*7.5', fill: '=12*7.5', lead: '=' },
+  { id: 'convert', icon: 'convert', ex: '5 km in mi', fill: '5 km in mi' },
+  { id: 'timer', icon: 'timer', fill: '10m ', lead: '10m' },
+  { id: 'todo', icon: 'todo', fill: 'todo ', lead: 'todo' },
+  { id: 'note', icon: 'note', fill: 'note ', lead: 'note' },
+  { id: 'search', icon: 'search', fill: 'g ', lead: 'g' },
+  { id: 'text', icon: 'text', ex: 'upper', fill: 'text', lead: 'upper' },
+  { id: 'pin', icon: 'settings', action: { type: 'system', what: 'settings' } },
+]);
+function helpRow(t, row, action, extra) {
+  const title = row.ex || t(`cmd.help.${row.id}.ex`);
+  // Only when the example really starts with it: a translation that reworded
+  // the command away gets no highlight rather than a wrong one.
+  const lead = row.lead && title.startsWith(row.lead) ? row.lead.length : 0;
+  return item('help', title, t(`cmd.help.${row.id}.sub`), action, { icon: row.icon, ...(lead ? { lead } : {}), ...extra });
+}
+const helpItems = (t) => HELP_ROWS.map((row) => helpRow(t, row, row.action || { type: 'fill', text: row.fill }, { stay: !row.action }));
+
+const helpCommand = (t) => command(t, 'system')(
+  t('cmd.help.title'), t('cmd.help.sub'), { type: 'fill', text: HELP_QUERY }, { icon: 'info', stay: true }, 'cmd.help.title', 'cmd.help.keys');
+
+// Help and the text fixers have long titles ("lowercase the copied text"), and a
+// scattered-letter match against those swallows ordinary searches: "weather"
+// fits inside that one. So they answer only when every word you typed starts
+// one of their words ("upper", "one line", "caps").
+const wordsOf = (s) => String(s).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+function startsWords(q, r) {
+  const typed = wordsOf(q);
+  const have = wordsOf(`${r.title} ${r.keys || ''}`);
+  return typed.length > 0 && typed.every((w) => have.some((h) => h.startsWith(w)));
+}
+const namedCommands = (q, t) => [helpCommand(t), ...textCommands(t)].filter((r) => startsWords(q, r));
+
+// A command word and a space with nothing after it yet ("todo "): show that
+// command's example while you type the rest, not a fuzzy guess at the bare word.
+// The space is what tells "g " (a search) from the first letter of "gmail".
+const WAITING = Object.freeze({ todo: 'todo', note: 'note', g: 'search', ddg: 'search', b: 'search' });
+function waitingFor(raw, t) {
+  const m = /^\s*(todo|note|g|ddg|b)\s+$/i.exec(raw);
+  const row = m && HELP_ROWS.find((r) => r.id === WAITING[m[1].toLowerCase()]);
+  return row ? [helpRow(t, row, null)] : null;
+}
+
 function systemCommands(ctx, t) {
   const os = ctx.platform === 'darwin' ? 'mac' : 'win';
   const lockTitle = `cmd.lock.title.${os}`;
-  const cmd = (title, sub, action, extra, titleKey, keysKey) => {
-    const keys = matchWords(t, titleKey, keysKey);
-    return item('system', title, sub, action, keys ? { ...extra, keys } : extra);
-  };
+  const cmd = command(t, 'system');
   return [
     cmd(t('cmd.snip.title'), t(`cmd.snip.sub.${os}`), { type: 'system', what: 'snip' }, { icon: 'snip' }, 'cmd.snip.title', 'cmd.snip.keys'),
     cmd(t(lockTitle), t(`cmd.lock.sub.${os}`), { type: 'system', what: 'lock' }, { icon: 'lock' }, lockTitle, 'cmd.lock.keys'),
@@ -95,7 +154,7 @@ function emptyQuery(ctx, t) {
     ...todoItems(ctx, t).map(inSection('today', t)),
     ...timerItems(ctx, t).map(inSection('timers', t)),
     ...clipItems(ctx, t).slice(0, 3).map(inSection('clips', t)),
-    ...systemCommands(ctx, t).map(inSection('actions', t)),
+    ...[...systemCommands(ctx, t), helpCommand(t)].map(inSection('actions', t)),
   ].slice(0, MAX_EMPTY);
 }
 
@@ -105,7 +164,7 @@ function emptyQuery(ctx, t) {
 // only has to say what it does, not how it looks.
 const KIND_ICON = { calc: 'calc', convert: 'convert', search: 'search', note: 'note', todo: 'todo', timer: 'timer', clip: 'clipboard', info: 'info' };
 const HINTS = { copy: 'hint.copy', search: 'hint.search', note: 'hint.save', openNotes: 'hint.open', todoAdd: 'hint.add', timerStart: 'hint.start',
-  timerCancel: 'hint.cancel', openShortcut: 'hint.open', clip: 'hint.copy', system: 'hint.run' };
+  timerCancel: 'hint.cancel', openShortcut: 'hint.open', clip: 'hint.copy', system: 'hint.run', fill: 'hint.try' };
 
 function shortcutIcon(target) {
   if (/^mailto:/i.test(target)) return 'mail';
@@ -132,6 +191,9 @@ const searchItem = (t, engine, query) =>
 
 // Routes that recognise a specific shape. Each returns a result list or null.
 const ROUTES = [
+  function help(q, ctx, t) {
+    return /^(\?|help)$/i.test(q) ? helpItems(t) : null;
+  },
   function math(q, ctx, t) {
     if (!q.startsWith('=') && !calc.looksLikeMath(q)) return null;
     const r = calc.evaluate(q);
@@ -185,15 +247,18 @@ function suggest(query, ctx) {
 }
 
 function route(query, ctx, t) {
-  const q = String(query == null ? '' : query).trim().slice(0, 500);
+  const raw = String(query == null ? '' : query).slice(0, 500);
+  const q = raw.trim();
   if (!q) return emptyQuery(ctx, t);
+  const waiting = waitingFor(raw, t);
+  if (waiting) return waiting;
 
   for (const route of ROUTES) {
     const hit = route(q, ctx, t);
     if (hit) return hit.slice(0, MAX_RESULTS);
   }
 
-  const pool = [...shortcutItems(ctx), ...todoItems(ctx, t), ...timerItems(ctx, t), ...systemCommands(ctx, t)];
+  const pool = [...shortcutItems(ctx), ...todoItems(ctx, t), ...timerItems(ctx, t), ...systemCommands(ctx, t), ...namedCommands(q, t)];
   const matches = rank(pool, q, (r) => (r.keys ? `${r.title} ${r.keys}` : r.title)).slice(0, MAX_RESULTS);
   if (matches.length) return matches.map(({ keys, ...r }) => r);
 

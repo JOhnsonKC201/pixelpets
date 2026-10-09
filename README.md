@@ -118,6 +118,8 @@ One box for the small things you do all day. Type something and press Enter:
 | `todo email the lab`, `done 1` | Today's to-dos, five at most; the pet cheers when you tick one off |
 | `10m tea`, `1h30m` | A timer the pet announces when it's up |
 | `snip`, `lock`, `awake` | Screen snip, lock the screen, keep the screen awake |
+| `upper`, `plain`, `one line`, `count` | Fixes the text you just copied (also `lower` and `title`), ready to paste |
+| `?` | Shows an example of everything above; Enter on one starts it for you |
 
 Clipboard history (the last 20 copies, kept in memory only, skipping passwords and keys) and 20-20-20 eye-rest nudges are opt-in switches in Settings > Tools. The low battery alert next to them is on by default. [Everything Quick Tools does.](docs/features.md#quick-tools)
 

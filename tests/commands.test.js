@@ -105,7 +105,7 @@ test('typed results are capped', () => {
 });
 
 test('every result has an icon and a verb, and the empty query is sectioned', () => {
-  const queries = ['', '=1+1', '5 km in mi', 'g x', 'note x', 'todo x', 'done 1', '10m tea', 'clip', 'gmail', 'proj', 'lock', 'zzqqxx', '=bad'];
+  const queries = ['', '?', 'text', '=1+1', '5 km in mi', 'g x', 'note x', 'todo x', 'done 1', '10m tea', 'clip', 'gmail', 'proj', 'lock', 'zzqqxx', '=bad'];
   for (const q of queries) {
     for (const r of suggest(q, ctx())) {
       assert.ok(typeof r.icon === 'string' && r.icon, `${q}: icon`);
@@ -119,4 +119,66 @@ test('every result has an icon and a verb, and the empty query is sectioned', ()
   assert.strictEqual(top('gmail').icon, 'link');
   assert.strictEqual(top('proj').icon, 'folder');
   assert.strictEqual(top('=2*3').hint, 'Copy');
+});
+
+test('"?" and "help" list things to type, and a row fills the box instead of running', () => {
+  const list = suggest('?', ctx());
+  assert.deepStrictEqual(suggest('help', ctx()), list);
+  assert.ok(list.length <= MAX_RESULTS);
+  assert.deepStrictEqual(list.map((r) => r.icon), ['calc', 'convert', 'timer', 'todo', 'note', 'search', 'text', 'settings']);
+  const fills = list.filter((r) => r.action.type === 'fill');
+  assert.strictEqual(fills.length, 7);
+  for (const r of fills) {
+    assert.strictEqual(r.stay, true, 'the launcher stays open so you can finish typing');
+    assert.strictEqual(r.hint, 'Try');
+    // What the box shows the moment a starter lands is about that same tool,
+    // and so is the first thing you get once you type more.
+    assert.strictEqual(top(r.action.text).icon, r.icon, `"${r.action.text}" as filled`);
+    const more = /\s$/.test(r.action.text) ? `${r.action.text}2` : r.action.text;
+    assert.strictEqual(top(more).icon, r.icon, `"${more}"`);
+  }
+  // A command word and a space is waiting for the rest; the bare word is still a search.
+  assert.strictEqual(top('todo ').action, null);
+  assert.strictEqual(top('todo ').title, 'todo call the dentist');
+  assert.notStrictEqual(top('g').kind, 'help', '"g" alone is still the start of "gmail"');
+  assert.strictEqual(top('g ').icon, 'search');
+  assert.deepStrictEqual(list[7].action, { type: 'system', what: 'settings' });
+  // The dashboard and the fuzzy list both lead to it.
+  assert.deepStrictEqual(suggest('', ctx()).at(-1).action, { type: 'fill', text: '?' });
+  assert.deepStrictEqual(top('examples').action, { type: 'fill', text: '?' });
+});
+
+test('text fixers are found by name and never show what is on the clipboard', () => {
+  for (const [q, op] of [['upper', 'upper'], ['lower', 'lower'], ['title', 'title'], ['plain', 'plain'], ['one line', 'oneline'], ['count', 'count'], ['caps', 'upper']]) {
+    assert.deepStrictEqual(top(q).action, { type: 'textfix', op }, q);
+  }
+  const all = suggest('text', ctx()).filter((r) => r.kind === 'text');
+  assert.strictEqual(all.length, 6, '"text" lists every fixer');
+  for (const r of all) {
+    assert.strictEqual(r.icon, 'text');
+    assert.ok(!('keys' in r));
+    assert.ok(!JSON.stringify(r).includes('first clip'), 'a row is a label, not a preview');
+  }
+  assert.ok(!suggest('', ctx()).some((r) => r.kind === 'text'), 'they stay out of the dashboard');
+});
+
+test('help and the text fixers answer to whole words, so ordinary searches still search', () => {
+  const quiet = ctx({ shortcuts: [], timers: [], todos: { day: '', items: [], nudged: '' } });
+  // Each of these fits, letter by scattered letter, inside a fixer's or help's title.
+  for (const q of ['weather', 'news', 'hello', 'excel', 'context', 'text me', 'help me', '?!']) {
+    assert.deepStrictEqual(suggest(q, quiet).map((r) => r.action.type), ['search', 'note'], q);
+  }
+  assert.deepStrictEqual(top('how', quiet).action, { type: 'fill', text: '?' });
+  assert.deepStrictEqual(top('upp', quiet).action, { type: 'textfix', op: 'upper' });
+});
+
+test('a help example says which part of it is the command, in every language', () => {
+  const i18n = require('../src/i18n');
+  for (const code of i18n.CODES) {
+    const t = i18n.translator(code);
+    const leads = suggest('?', ctx({ t })).map((r) => (r.lead ? r.title.slice(0, r.lead) : ''));
+    assert.deepStrictEqual(leads, ['=', '', '10m', 'todo', 'note', 'g', 'upper', ''], code);
+    assert.strictEqual(top('todo ', ctx({ t })).lead, 4, `${code}: the waiting row marks it too`);
+  }
+  assert.ok(!('lead' in top('gmail')), 'ordinary rows carry no lead');
 });

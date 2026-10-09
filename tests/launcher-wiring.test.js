@@ -81,7 +81,7 @@ test('every icon the router asks for is drawn, and icons are built as DOM, not m
     timers: [{ id: 'tm1', endsAt: 1000, label: 't' }], clips: ['clip'],
   };
   const used = new Set();
-  for (const q of ['', '=1+1', '5 km in mi', 'g x', 'note x', 'todo x', 'done 1', '10m', 'clip', '=bad', 'zzqq']) {
+  for (const q of ['', '?', 'text', '=1+1', '5 km in mi', 'g x', 'note x', 'todo x', 'done 1', '10m', 'clip', '=bad', 'zzqq']) {
     for (const r of suggest(q, ctx)) used.add(r.icon);
   }
   for (const id of used) assert.ok(have.has(id), `icon "${id}" is missing from launcher-icons.js`);

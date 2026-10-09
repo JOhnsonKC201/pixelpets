@@ -33,9 +33,9 @@ const ctx = (over = {}) => ({
   ...over,
 });
 // Queries a route recognises by shape. What they return cannot depend on wording.
-const ROUTED = ['', '=1+1', '=bad', '5 km in mi', 'g cats', 'note milk', 'todo call', 'done 1', 'done 2', 'done 9', '10m', '10m tea', 'clip'];
+const ROUTED = ['', '?', 'todo ', 'g ', '=1+1', '=bad', '5 km in mi', 'g cats', 'note milk', 'todo call', 'done 1', 'done 2', 'done 9', '10m', '10m tea', 'clip'];
 // Plus the fuzzy list and the search-or-note fallback, which match on titles.
-const QUERIES = [...ROUTED, 'gmail', 'zzqqxx'];
+const QUERIES = [...ROUTED, 'gmail', 'text', 'zzqqxx'];
 
 test('every language has exactly the English keys', () => {
   const want = Object.keys(EN).sort();
