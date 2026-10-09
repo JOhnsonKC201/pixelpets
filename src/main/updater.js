@@ -18,6 +18,7 @@
 // release, so whoever can publish a release can publish an update. Code
 // signing (win.publisherName) is what would add that check.
 
+const { translator, FALLBACK } = require('../i18n');
 const FIRST_CHECK_MS = 30 * 1000;
 const EVERY_MS = 6 * 60 * 60 * 1000;
 const RELEASES = 'https://github.com/JOhnsonKC201/pixelpets/releases';
@@ -127,13 +128,15 @@ function makeUpdater(d) {
     d.onChange();
   }
 
+  const tr = () => (typeof d.t === 'function' ? d.t : translator(FALLBACK));
+
   /** Tray items for what is waiting, if anything. */
   function trayItems() {
     if (mode === 'install' && ready) {
-      return [{ label: `Restart to update to ${ready}`, click: () => wire().quitAndInstall() }];
+      return [{ label: tr()('tray.updateRestart', { version: ready }), click: () => wire().quitAndInstall() }];
     }
     if (mode === 'notify' && available) {
-      return [{ label: `Download ${available}`, click: () => d.openExternal(`${RELEASES}/tag/v${encodeURIComponent(available)}`) }];
+      return [{ label: tr()('tray.updateDownload', { version: available }), click: () => d.openExternal(`${RELEASES}/tag/v${encodeURIComponent(available)}`) }];
     }
     return [];
   }

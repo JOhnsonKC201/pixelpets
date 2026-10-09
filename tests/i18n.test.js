@@ -84,12 +84,13 @@ test('locale files hold plain text: no markup, no long dashes', () => {
 });
 
 test('every key the code asks for exists, and no key is left unused', () => {
-  const files = ['tools/commands.js', 'tools/actions.js', 'tools/system.js', 'tools/index.js'];
+  const files = ['tools/commands.js', 'tools/actions.js', 'tools/system.js', 'tools/index.js',
+    'main/tray-menu.js', 'main/updater.js', 'main/notify-history.js', 'main/lang.js'];
   const code = files.map((f) => codeOnly(read(f))).join('\n');
-  const literal = new Set([...code.matchAll(/'((?:launcher|section|cmd|hint|calc|convert|search|note|clip|todo|timer|say|sys|nudge|hotkey)\.[\w.]+)'/g)].map((m) => m[1]));
+  const literal = new Set([...code.matchAll(/'((?:launcher|section|cmd|hint|calc|convert|search|note|clip|todo|timer|say|sys|nudge|hotkey|tray|ago)\.[\w.]+)'/g)].map((m) => m[1]));
   for (const key of literal) assert.ok(key in EN, `the code asks for "${key}", which en.json does not have`);
-  // Keys built at run time: `cmd.snip.sub.${os}`, `section.${section}`, `launcher.${k}`.
-  const stems = [...code.matchAll(/`((?:launcher|section|cmd)\.[\w.]*)\$\{/g)].map((m) => m[1]);
+  // Keys built at run time: `cmd.snip.sub.${os}`, `section.${section}`, `pet.${id}.label`, `coat.${slug}`.
+  const stems = [...code.matchAll(/`(?:[^`]*\$\{t\(`)?((?:launcher|section|cmd|pet|coat|jam)\.[\w.]*)\$\{/g)].map((m) => m[1]);
   for (const key of Object.keys(EN)) {
     assert.ok(literal.has(key) || stems.some((s) => key.startsWith(s)), `en.json has "${key}", which nothing uses`);
   }
@@ -207,4 +208,97 @@ test('Settings offers exactly the languages that ship, and the choice is validat
   assert.strictEqual(config.normalize({ language: 'ja' }).language, 'ja');
   assert.strictEqual(config.normalize({ language: '../../etc' }).language, 'auto');
   assert.strictEqual(config.normalize({ language: 'JA' }).language, 'auto', 'only an exact code is stored');
+});
+
+// ---- tray menu ------------------------------------------------------------------
+const { buildTrayTemplate } = require('../src/main/tray-menu');
+const { coatLabel, coatSlug, makeLang } = require('../src/main/lang');
+const { relTime } = require('../src/main/notify-history');
+const pets = require('../src/pets');
+const { PATTERN_NAMES } = require('../src/patterns');
+
+const tray = (t, species = 'cat', extra = {}) => buildTrayTemplate({
+  cfg: { species }, getCfg: () => ({ species }), species: pets.speciesOf(species), t,
+  speciesList: pets.SPECIES_IDS.map((id) => ({ id, emoji: pets.SPECIES[id].emoji })),
+  coatNames: ['A coat'], recent: [], relTime: () => 'now', onBattery: false, lowPowerOn: false, toolItems: [],
+  ...extra,
+}, new Proxy({}, { get: () => () => {} }));
+const labels = (items) => items.flatMap((it) => [it.label, ...(it.submenu ? labels(it.submenu) : [])]).filter((l) => l !== undefined);
+
+test('the pet words in en.json are the ones pets.js gives the rest of the app', () => {
+  // Settings still reads pets.js directly. Until it moves over, the two must agree.
+  for (const id of pets.SPECIES_IDS) {
+    const sp = pets.speciesOf(id);
+    assert.strictEqual(EN[`pet.${id}.label`], sp.label);
+    assert.strictEqual(EN[`pet.${id}.give`], sp.giveLabel);
+    assert.strictEqual(EN[`pet.${id}.coatNoun`], sp.coatNoun);
+    assert.strictEqual(EN[`pet.${id}.playToggle`], sp.playToggleLabel);
+    assert.strictEqual(EN[`pet.${id}.playNoun`], sp.playNoun);
+  }
+});
+
+test('the pet and music-mood keys are exactly the ones the menu builds', () => {
+  // Built with template literals, so the unused-key scan above cannot see a stale one.
+  const want = [
+    ...pets.SPECIES_IDS.flatMap((id) => ['label', 'give', 'coatNoun', 'playToggle', 'playNoun'].map((w) => `pet.${id}.${w}`)),
+    ...['cozy', 'dreamy', 'upbeat', 'focus', 'rain', 'sleepy'].map((id) => `jam.${id}`),
+  ].sort();
+  assert.deepStrictEqual(Object.keys(EN).filter((k) => /^(pet|jam)\./.test(k)).sort(), want);
+  assert.deepStrictEqual(config.normalize({ lobbyJam: { mood: 'sleepy' } }).lobbyJam.mood, 'sleepy');
+});
+
+test('every built-in coat has a name in every language, and a custom coat keeps its own', () => {
+  const builtin = [...new Set([...PATTERN_NAMES, ...pets.CAT_COATS, ...pets.DOG_COATS])];
+  for (const name of builtin) assert.strictEqual(EN[`coat.${coatSlug(name)}`], name, name);
+  const coatKeys = Object.keys(EN).filter((k) => k.startsWith('coat.'));
+  assert.strictEqual(coatKeys.length, builtin.length, 'a coat key with no coat behind it');
+  const es = i18n.translator('es');
+  assert.strictEqual(coatLabel(es, 'Russian Blue'), 'Azul ruso');
+  assert.strictEqual(coatLabel(es, 'Mochi the Brave'), 'Mochi the Brave');
+  assert.strictEqual(coatLabel(es, 'constructor'), 'constructor');
+  assert.strictEqual(coatLabel(es, ''), '');
+});
+
+test('the tray menu reads in every language, for both pets, with no raw key', () => {
+  for (const code of i18n.CODES) {
+    const t = i18n.translator(code);
+    for (const species of pets.SPECIES_IDS) {
+      const all = labels(tray(t, species, { onBattery: species === 'dog', recent: [{ ts: 0, message: 'hi' }] }));
+      assert.ok(all.length > 40, 'the menu lost its items');
+      for (const l of all) {
+        assert.ok(typeof l === 'string' && l.trim(), `${code} ${species}: an empty label`);
+        assert.doesNotMatch(l, LOOKS_LIKE_KEY, `${code} ${species}`);
+        assert.doesNotMatch(l, /\{\w+\}/, `${code} ${species}: an unfilled placeholder in "${l}"`);
+      }
+    }
+  }
+});
+
+test('the language changes tray labels only: same items, same types, same checks', () => {
+  const shape = (items) => items.map((it) => ({ type: it.type, checked: it.checked, enabled: it.enabled, sub: it.submenu ? shape(it.submenu) : undefined, click: typeof it.click }));
+  for (const code of OTHERS) {
+    assert.deepStrictEqual(shape(tray(i18n.translator(code), 'dog')), shape(tray(undefined, 'dog')), code);
+  }
+  const ja = labels(tray(i18n.translator('ja'), 'dog'));
+  assert.ok(ja.includes(i18n.TABLES.ja['pet.dog.give']));
+  assert.ok(!ja.includes(i18n.TABLES.ja['pet.cat.give']), 'a dog owner is never offered the cat\'s treat');
+});
+
+test('relative times and the shared language helper', () => {
+  const now = 1_000_000_000;
+  assert.strictEqual(relTime(now - 5 * 60_000, now, i18n.translator('es')), 'hace 5 min');
+  assert.strictEqual(relTime(now - 5 * 60_000, now), '5m ago');
+  let calls = 0;
+  const cfg = { language: 'auto' };
+  const lang = makeLang({ app: { getPreferredSystemLanguages: () => { calls += 1; return ['de-AT']; }, getLocale: () => 'en-US' }, getCfg: () => cfg });
+  assert.strictEqual(lang.locale(), 'de');
+  assert.strictEqual(lang.t('tray.sound'), 'Ton');
+  cfg.language = 'ja';
+  assert.strictEqual(lang.t('tray.sound'), i18n.TABLES.ja['tray.sound'], 'a change in Settings shows on the next call');
+  assert.strictEqual(calls, 1, 'the system list is asked once');
+  let ready = false;
+  const early = makeLang({ app: { getPreferredSystemLanguages() { if (!ready) throw new Error('not ready'); return ['fr-FR']; }, getLocale: () => 'fr' }, getCfg: () => null });
+  assert.strictEqual(early.t('tray.sound'), 'Sound', 'asked too early, it speaks English');
+  ready = true;
+  assert.strictEqual(early.t('tray.sound'), 'Son', 'and a failed ask is not remembered');
 });

@@ -43,14 +43,10 @@ let hotkeyWarned = false;
 
 const cfg = () => d.getCfg();
 
-// The user's language: the Settings choice, or on Auto the first of the system's
-// preferred languages that ships a translation. Resolved per call, so changing
-// it in Settings takes effect on the next thing the pet says.
-function systemLanguages() {
-  try { return [...app.getPreferredSystemLanguages(), app.getLocale()]; } catch (e) { return []; }
-}
-const locale = () => i18n.resolveLocale(cfg() && cfg().language, systemLanguages());
-const t = (key, vars) => i18n.translator(locale())(key, vars);
+// The user's language, from main (src/main/lang.js). Resolved per call, so
+// changing it in Settings takes effect on the next thing the pet says.
+const locale = () => (d && d.locale ? d.locale() : i18n.FALLBACK);
+const t = (key, vars) => (d && d.t ? d.t(key, vars) : i18n.translator(i18n.FALLBACK)(key, vars));
 const notesFile = () => path.join(app.getPath('userData'), 'notes.md');
 
 // Launcher feedback: a short bubble that stays out of the tray history, the OS
@@ -301,19 +297,19 @@ function trayItems() {
   const c = cfg();
   const key = hotkey.registered();
   const items = [
-    { label: 'Quick tools…', click: () => open(null), ...(key ? { accelerator: key, registerAccelerator: false } : {}) },
-    { label: 'Keep screen awake', type: 'checkbox', checked: system.isKeepAwake(), click: () => runAction(api, { type: 'system', what: 'keepAwake' }) },
-    { label: process.platform === 'darwin' ? 'Sleep display' : 'Lock screen', click: () => runAction(api, { type: 'system', what: 'lock' }) },
+    { label: t('tray.quickTools'), click: () => open(null), ...(key ? { accelerator: key, registerAccelerator: false } : {}) },
+    { label: t('cmd.awake.title'), type: 'checkbox', checked: system.isKeepAwake(), click: () => runAction(api, { type: 'system', what: 'keepAwake' }) },
+    { label: t(process.platform === 'darwin' ? 'cmd.lock.title.mac' : 'cmd.lock.title.win'), click: () => runAction(api, { type: 'system', what: 'lock' }) },
   ];
   if (timers.length) {
-    items.push({ label: 'Timers', submenu: timers.map((t) => ({
-      label: `Cancel ${t.label || 'timer'} (${timersLib.formatRemaining(t.endsAt - Date.now())} left)`,
-      click: () => runAction(api, { type: 'timerCancel', id: t.id }),
+    items.push({ label: t('tray.timers'), submenu: timers.map((tm) => ({
+      label: t('tray.timerCancel', { label: tm.label || t('tray.timerFallback'), time: timersLib.formatRemaining(tm.endsAt - Date.now()) }),
+      click: () => runAction(api, { type: 'timerCancel', id: tm.id }),
     })) });
   }
   items.push(
-    { label: 'Clipboard history', type: 'checkbox', checked: !!c.tools.clipboard, click: () => persistTools({ clipboard: !c.tools.clipboard }) },
-    { label: 'Eye-rest nudges', type: 'checkbox', checked: !!c.tools.eyeRest, click: () => { eyeLastAt = Date.now(); persistTools({ eyeRest: !c.tools.eyeRest }); } },
+    { label: t('cmd.clipboard.title'), type: 'checkbox', checked: !!c.tools.clipboard, click: () => persistTools({ clipboard: !c.tools.clipboard }) },
+    { label: t('tray.eyeRest'), type: 'checkbox', checked: !!c.tools.eyeRest, click: () => { eyeLastAt = Date.now(); persistTools({ eyeRest: !c.tools.eyeRest }); } },
   );
   return items;
 }

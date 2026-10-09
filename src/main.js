@@ -35,6 +35,7 @@ const { startSoak } = require('./main/soak');
 const { captureShot } = require('./main/shot');
 const { createSettingsWindow } = require('./main/settings-window');
 const { makeUpdater } = require('./main/updater');
+const { makeLang, coatLabel } = require('./main/lang');
 const { fixDevTaskbarIcon } = require('./main/taskbar-identity');
 
 // Let the overlay auto-resume the Lobby Jam music at launch without a click - Chromium
@@ -45,6 +46,7 @@ let win;                                               // the overlay (the cat)
 let settingsWin = null;                                // settings window (when open)
 let tray = null;
 let cfg = null;                                        // current settings (main = source of truth)
+const lang = makeLang({ app, getCfg: () => cfg });     // the user's language: lang.t(key, vars)
 let themesCache = [];                                  // user-defined custom coats (themes.json)
 // Renderer crash-loop guard. Module scope so the count survives the reload it
 // triggers; see the render-process-gone handler in createWindow().
@@ -357,11 +359,11 @@ function rebuildTrayMenu() {
   // The tray follows the active species: a dog owner picks a BREED, not a coat,
   // and each species remembers its own choice in its own config field.
   const sp = speciesOf(cfg && cfg.species);
-  const coatNames = sp.id === 'dog' ? coatsFor('dog') : PATTERN_NAMES.concat(themesCache.map((t) => t.name));
+  const coatNames = (sp.id === 'dog' ? coatsFor('dog') : PATTERN_NAMES).map((n) => coatLabel(lang.t, n)).concat(sp.id === 'dog' ? [] : themesCache.map((th) => th.name));
   tray.setContextMenu(Menu.buildFromTemplate(buildTrayTemplate({
-    cfg, getCfg: () => cfg, species: sp, coatNames,
-    speciesList: SPECIES_IDS.map((id) => ({ id, emoji: SPECIES[id].emoji, label: SPECIES[id].label })),
-    recent: notifyHistory.recent(10), relTime,
+    cfg, getCfg: () => cfg, species: sp, coatNames, t: lang.t,
+    speciesList: SPECIES_IDS.map((id) => ({ id, emoji: SPECIES[id].emoji })),
+    recent: notifyHistory.recent(10), relTime: (ts) => relTime(ts, Date.now(), lang.t),
     onBattery, lowPowerOn: effectiveLowPower(), toolItems: [...(updater ? updater.trayItems() : []), ...tools.trayItems()],
   }, {
     persist: persistAndBroadcast, openSettings, triggerBreak, giveTreat, snooze: snoozeLast, sendMood, startSetArea, sendAction,
@@ -749,7 +751,7 @@ app.whenReady().then(() => {
   if (!SHOT && !SHEET) {
     updater = makeUpdater({
       getUpdater: () => require('electron-updater').autoUpdater, isPackaged: app.isPackaged, platform: process.platform,
-      getCfg: () => cfg, notify, log, openExternal: (url) => shell.openExternal(url), onChange: () => rebuildTrayMenu(),
+      getCfg: () => cfg, t: lang.t, notify, log, openExternal: (url) => shell.openExternal(url), onChange: () => rebuildTrayMenu(),
     });
     createTray(); updater.sync(); startScheduler(); mail.init(notify, () => cfg); mail.sync(cfg); cal.init(notify, () => cfg); cal.sync(cfg);
     if (cli.soakMinutes) startSoak({ app, minutes: cli.soakMinutes, print: (line) => { log.info(line); if (app.isPackaged) console.log(line); } });
@@ -760,7 +762,7 @@ app.whenReady().then(() => {
       inQuiet: () => !!(cfg && inQuietHours(cfg.quietHours, new Date())),
       isSettingsFocused: () => !!(settingsWin && !settingsWin.isDestroyed() && settingsWin.isFocused()),
       getSettingsWin: () => (settingsWin && !settingsWin.isDestroyed() ? settingsWin : null),
-      getThemes: () => themesCache, builtinCoatCount: () => PATTERN_NAMES.length, log,
+      getThemes: () => themesCache, builtinCoatCount: () => PATTERN_NAMES.length, log, t: lang.t, locale: lang.locale,
     });
     reportWin = makeReportWindow({
       hardenNav, wireMacEditKeys, log, logDir: logDir(),
