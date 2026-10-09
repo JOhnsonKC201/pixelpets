@@ -132,6 +132,11 @@ right-click the pet, and a small launcher opens. It is keyboard first: type,
 use the arrows, press Enter. With nothing typed it lists your pinned shortcuts,
 today's to-dos, running timers and a few one-press actions.
 
+The pet in the corner of the box wears your pet's coat and reacts as you
+type: it leans in when there is something to run, tilts its head when there
+is not, and dozes if you leave the box empty. With reduced motion on, in the
+app or in your system settings, it keeps the pose and does not move.
+
 - **Not sure what to type?** `?` or `help` lists an example of each tool below.
   Press Enter on one and its start lands in the box (`todo `, `10m `) for
   you to finish. "What can I type?" at the bottom of the list does the same.
