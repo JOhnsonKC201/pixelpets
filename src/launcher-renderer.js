@@ -8,6 +8,7 @@
 (() => {
   const api = window.launcher;
   const Icons = window.LauncherIcons;
+  const Pet = window.LauncherPet;
   const input = document.getElementById('q');
   const list = document.getElementById('list');
   const tip = document.getElementById('tip');
@@ -33,6 +34,32 @@
   let seq = 0;            // drops out-of-order replies when typing fast
   let busy = false;       // one run at a time
   let refreshTimer = null;
+  let dozeTimer = null;
+  let pendingPetEvent = null;   // what caused the next render: 'type' or 'run'
+  let idleSince = Date.now();   // when the box last had a keystroke in it
+
+  // The pet in the header reacts to what is in the box. The mood is decided from
+  // flags (is there a row to run?), set as an attribute, and posed by CSS.
+  function petSet(event) {
+    const before = document.body.dataset.pet || 'idle';
+    const after = Pet.petMood({ query: input.value, items, idleMs: Date.now() - idleSince });
+    document.body.dataset.pet = after;
+    const once = Pet.petReaction(event, before, after);
+    if (!once) return;
+    petCanvas.classList.remove(...Pet.PET_REACTIONS);
+    void petCanvas.offsetWidth;   // restart the animation when the same one repeats
+    petCanvas.classList.add(once);
+  }
+  // A finished tap or hop takes its class with it. Breathing never ends.
+  petCanvas.addEventListener('animationend', (e) => {
+    if (e.animationName !== 'pet-breathe') petCanvas.classList.remove(...Pet.PET_REACTIONS);
+  });
+  // An empty box left alone dozes off. Any keystroke, or closing, wakes it.
+  function petRest() {
+    clearTimeout(dozeTimer);
+    idleSince = Date.now();
+    dozeTimer = setTimeout(() => petSet('doze'), Pet.PET_DOZE_MS + 50);   // a timer may fire a hair early
+  }
 
   const el = (tag, cls, text) => {
     const n = document.createElement(tag);
@@ -149,6 +176,8 @@
     }
     list.replaceChildren(...nodes);
     paintSelection();
+    petSet(pendingPetEvent);
+    pendingPetEvent = null;
     requestAnimationFrame(() => api.resize(document.body.scrollHeight));
   }
 
@@ -164,9 +193,9 @@
     busy = true;
     try {
       const r = await api.run(input.value, i);
-      if (r && r.list) render(r.list);
+      if (r && r.list) { pendingPetEvent = 'run'; petRest(); render(r.list); }
       // A help row answers with a starter ("todo ") for you to finish.
-      if (r && typeof r.fill === 'string') { input.value = r.fill; sel = 0; input.focus(); await refresh(); }
+      if (r && typeof r.fill === 'string') { input.value = r.fill; sel = 0; input.focus(); pendingPetEvent = 'run'; petRest(); await refresh(); }
     } finally { busy = false; }
   }
 
@@ -202,13 +231,13 @@
     if (str('tipSelected')) tipSelected = str('tipSelected');
   }
 
-  input.addEventListener('input', () => { sel = 0; refresh(); });
+  input.addEventListener('input', () => { sel = 0; pendingPetEvent = 'type'; petRest(); refresh(); });
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Alt') { document.body.classList.add('alt'); return; }
     if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey) || (e.ctrlKey && e.key === 'n')) { e.preventDefault(); move(1); }
     else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey) || (e.ctrlKey && e.key === 'p')) { e.preventDefault(); move(-1); }
     else if (e.key === 'Enter') { e.preventDefault(); run(sel); }
-    else if (e.key === 'Escape') { e.preventDefault(); if (input.value) { input.value = ''; sel = 0; refresh(); } else api.hide(); }
+    else if (e.key === 'Escape') { e.preventDefault(); if (input.value) { input.value = ''; sel = 0; petRest(); refresh(); } else api.hide(); }
     // e.code, not e.key: on a Mac, Option+1 types a symbol, so e.key is never "1".
     else if (e.altKey && /^Digit[1-8]$/.test(e.code)) { e.preventDefault(); run(Number(e.code.slice(5)) - 1); }
   });
@@ -219,7 +248,8 @@
     clearInterval(refreshTimer);
     refreshTimer = setInterval(() => { if (!input.value && items.some((x) => x.kind === 'timer')) refresh(); }, REFRESH_MS);
   }
-  window.addEventListener('blur', () => { clearInterval(refreshTimer); document.body.classList.remove('alt'); });
+  window.addEventListener('blur', () => { clearInterval(refreshTimer); clearTimeout(dozeTimer); document.body.classList.remove('alt'); });
+  window.addEventListener('focus', petRest);
 
   api.onReset((state) => {
     const s = state || {};
@@ -233,6 +263,10 @@
     input.value = '';
     sel = 0;
     input.focus();
+    petCanvas.classList.remove(...Pet.PET_REACTIONS);
+    pendingPetEvent = null;
+    document.body.dataset.pet = 'idle';
+    petRest();
     refresh();
     startRefresh();
   });

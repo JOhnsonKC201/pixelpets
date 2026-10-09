@@ -52,7 +52,37 @@
 
     /* header: the pet, the input, the key that closes it */
     .bar { display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 12px; border-bottom: 1px solid var(--sep); }
-    #pet { width: 34px; height: 40px; flex: none; image-rendering: pixelated; }
+    /* The pet reacts to what you type (src/launcher-pet.js picks the mood). The
+       sprite is never redrawn: breathing is `scale`, a mood is a `rotate` pose and
+       a one-off tap or hop is `translate`, so the three never fight and all of
+       it stays on the compositor. */
+    .petbox { position: relative; flex: none; width: 34px; height: 40px; }
+    #pet { display: block; width: 34px; height: 40px; image-rendering: pixelated; transform-origin: 50% 100%; --breathe: 3.6s;
+      transition: rotate .22s cubic-bezier(.2, .9, .3, 1.3); animation: pet-breathe var(--breathe) ease-in-out infinite; }
+    body[data-pet="listen"] #pet { rotate: 5deg; }
+    body[data-pet="curious"] #pet { rotate: -9deg; }
+    body[data-pet="doze"] #pet { --breathe: 6s; }
+    #pet.tap { animation: pet-breathe var(--breathe) ease-in-out infinite, pet-tap .14s ease-out; }
+    #pet.hop { animation: pet-breathe var(--breathe) ease-in-out infinite, pet-hop .34s cubic-bezier(.3, .7, .4, 1); }
+    .zz { position: absolute; left: 25px; top: -3px; font: 700 9px/1 "Cascadia Mono", "SF Mono", ui-monospace, Consolas, monospace; color: var(--faint); opacity: 0; pointer-events: none; }
+    body[data-pet="doze"] .zz { animation: pet-zz 2.6s ease-in-out infinite; }
+    @keyframes pet-breathe {
+      0%, 100% { scale: 1 1; }
+      50% { scale: 1.02 .965; }
+    }
+    @keyframes pet-tap {
+      0%, 100% { translate: 0 0; }
+      50% { translate: 0 1.5px; }
+    }
+    @keyframes pet-hop {
+      0%, 100% { translate: 0 0; }
+      45% { translate: 0 -6px; }
+    }
+    @keyframes pet-zz {
+      0% { opacity: 0; translate: 0 2px; }
+      40% { opacity: .9; }
+      100% { opacity: 0; translate: 3px -6px; }
+    }
     #q { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--fg); font: 400 19px/1.2 inherit; caret-color: var(--accent); }
     #q::placeholder { color: var(--faint); }
     kbd { font: 600 10.5px/1 "Segoe UI", system-ui, sans-serif; color: var(--muted); background: var(--kbd); border: 1px solid var(--hair); border-bottom-width: 2px; border-radius: 5px; padding: 3px 6px; }
@@ -118,14 +148,20 @@
     .foot span { display: inline-flex; align-items: center; gap: 5px; }
     .foot .tip { margin-left: auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
-    @media (prefers-reduced-motion: reduce) { body.enter .shell { animation: none; } .row, .switch, .switch::after { transition: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      body.enter .shell { animation: none; }
+      .row, .switch, .switch::after { transition: none; }
+      #pet, #pet.tap, #pet.hop, body[data-pet="doze"] .zz { animation: none; transition: none; }
+    }
     body.still .shell { animation: none !important; }
+    /* Held still, the pet keeps its pose and loses every movement. */
+    body.still #pet, body.still #pet.tap, body.still #pet.hop, body.still .zz { animation: none !important; transition: none; }
   </style>
 </head>
 <body>
   <div class="shell">
     <div class="bar">
-      <canvas id="pet" width="34" height="40" aria-hidden="true"></canvas>
+      <span class="petbox" aria-hidden="true"><canvas id="pet" width="34" height="40"></canvas><span class="zz">z</span></span>
       <input id="q" type="text" autocomplete="off" spellcheck="false"
              role="combobox" aria-expanded="true" aria-controls="list" aria-autocomplete="list"
              placeholder="Search apps, notes, timers, anything…" />
@@ -145,6 +181,7 @@
   <script src="pets.js"></script>
   <script src="cat-preview.js"></script>
   <script src="launcher-icons.js"></script>
+  <script src="launcher-pet.js"></script>
   <script src="launcher-renderer.js"></script>
 </body>
 </html>
