@@ -104,8 +104,6 @@ Right-click the pet, or press Ctrl+Shift+Space (Cmd+Shift+Space on a Mac) from a
 
 Quick Tools speaks English, Spanish, French, German, Brazilian Portuguese, Hindi, Japanese and Simplified Chinese, and follows your system language.
 
-> **Not in the download yet.** Quick Tools, the eight languages and the stay-quiet-in-meetings behaviour were finished after v0.4.0, so they'll be in the next release. Until then you can get them by [running from source](#for-developers).
-
 The [feature guide](docs/features.md) covers all of it in detail.
 
 ## Coats
