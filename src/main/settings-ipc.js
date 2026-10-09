@@ -74,7 +74,7 @@ function registerSettingsIpc(d) {
     d.sendAction(id);
   });
 
-  handleSecure('email:passwordInfo', () => d.mail.passwordInfo());
+  handleSecure('email:passwordInfo', () => d.mail.passwordInfo(getCfg()));
   handleSecure('email:setPassword', (_e, pw) => d.mail.setPassword(pw));
   handleSecure('email:test', (_e, pw) => d.mail.test(getCfg(), pw && String(pw).length ? String(pw) : null));
   handleSecure('calendar:test', () => d.cal.test(getCfg()));

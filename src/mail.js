@@ -33,9 +33,21 @@ function normalizePassword(plain) {
 // stale or undecryptable email.cred used to show a reassuring "saved" tick in
 // Settings while every poll bailed out for want of a password. The length lets the
 // UI call out a truncated app-password instead of pretending it is fine.
-function passwordInfo() {
+function passwordInfo(cfg) {
   const pw = readPassword();
-  return { has: pw.length > 0, len: pw.length };
+  const e = (cfg && cfg.email) || {};
+  return { has: pw.length > 0, len: pw.length, advice: passwordAdvice(pw.length, e.user, e.host) };
+}
+
+// Google issues an app password as exactly sixteen letters, and setPassword has
+// already taken the spaces out. Any other length saved against a Gmail account
+// is almost always the account's own password, which Gmail refuses over IMAP,
+// so the poll fails quietly and the alerts simply never come. Only the length
+// is looked at: the password itself is never compared, logged or sent anywhere.
+const GMAIL_APP_PASSWORD_LEN = 16;
+function passwordAdvice(len, email, host) {
+  if (!len) return null;
+  return imapHostFor(email, host) === 'imap.gmail.com' && len !== GMAIL_APP_PASSWORD_LEN ? 'gmail-length' : null;
 }
 function hasPassword() { return passwordInfo().has; }
 function setPassword(plain) {
@@ -172,4 +184,4 @@ function test(cfg, plainOverride) {
 function init(notify_, getCfg_) { notifyFn = notify_; getCfg = getCfg_; }
 function stop() { if (timer) { clearInterval(timer); timer = null; } }
 
-module.exports = { init, sync, test, setPassword, hasPassword, passwordInfo, stop, imapHostFor, normalizePassword, isVip, describe };
+module.exports = { init, sync, test, setPassword, hasPassword, passwordInfo, passwordAdvice, GMAIL_APP_PASSWORD_LEN, stop, imapHostFor, normalizePassword, isVip, describe };

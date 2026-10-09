@@ -84,3 +84,29 @@ test('no envelope falls back to the plain count', () => {
   assert.strictEqual(mail.describe(2, null), 'You have {count} new emails.');
   assert.strictEqual(mail.describe(2, { name: '', address: '', subject: '' }), 'You have {count} new emails.');
 });
+
+test('a Gmail account with a password that is not sixteen letters is called out', () => {
+  const a = mail.passwordAdvice;
+  assert.strictEqual(a(16, 'me@gmail.com', 'imap.gmail.com'), null, 'a real app password');
+  assert.strictEqual(a(19, 'me@gmail.com', 'imap.gmail.com'), 'gmail-length', 'most likely the account password');
+  assert.strictEqual(a(12, 'me@googlemail.com', ''), 'gmail-length', 'the host is inferred from the address');
+  assert.strictEqual(a(19, 'me@gmail.com', 'www.gmail.com'), 'gmail-length', 'a web address still means Gmail');
+  // Other providers issue other lengths, and a self-hosted server can use anything.
+  assert.strictEqual(a(19, 'me@outlook.com', ''), null);
+  assert.strictEqual(a(40, 'me@example.org', 'mail.example.org'), null);
+  assert.strictEqual(a(0, 'me@gmail.com', 'imap.gmail.com'), null, 'nothing saved is not a wrong password');
+  assert.strictEqual(mail.GMAIL_APP_PASSWORD_LEN, 16);
+});
+
+test('Settings turns that advice into a sentence, and asks about the account it is showing', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = (f) => fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8');
+  const ui = src('settings-renderer.js');
+  assert.match(ui, /info\.advice === 'gmail-length'/);
+  assert.match(ui, /myaccount\.google\.com\/apppasswords/);
+  // The advice depends on the address and server, so main must be handed the config.
+  assert.match(src(path.join('main', 'settings-ipc.js')), /passwordInfo\(getCfg\(\)\)/);
+  // The sentence replaces 'Password saved' so it is not buried under it.
+  assert.match(ui, /problem \|\| `Password saved/);
+});

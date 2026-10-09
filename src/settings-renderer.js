@@ -296,15 +296,20 @@ $('emailOn').addEventListener('change', async () => {
     : 'Alerts are on. Hit Test to check the connection.';
 });
 const APP_PASSWORD_MIN = 8;   // shorter than any provider issues: a sign of a truncated paste
+// What may be wrong with the saved password, as a sentence, or '' when nothing is.
+// Worded as likely, not certain: a work or school Google account can be set up
+// in ways this cannot see.
+const GMAIL_PASSWORD_HELP = 'Gmail usually needs a 16-letter app password, and the one saved is a different length. If it is your normal Google password, Gmail will refuse it. You can make an app password at myaccount.google.com/apppasswords once 2-Step Verification is on. On a work or school account, your admin may have to allow it.';
 async function refreshEmailPassState() {
   try {
     const info = await window.settings.emailPasswordInfo();
     const el = $('emailPassState');
-    if (!info || !info.has) { el.textContent = ''; return; }
-    el.textContent = info.len < APP_PASSWORD_MIN
-      ? `\u00b7 saved, but only ${info.len} characters; re-enter it`
-      : '\u00b7 saved \u2713';
-  } catch (e) { /* ignore */ }
+    if (!info || !info.has) { el.textContent = ''; return ''; }
+    if (info.len < APP_PASSWORD_MIN) { el.textContent = `\u00b7 saved, but only ${info.len} characters; re-enter it`; return ''; }
+    if (info.advice === 'gmail-length') { el.textContent = `\u00b7 saved, but ${info.len} characters, not 16`; return GMAIL_PASSWORD_HELP; }
+    el.textContent = '\u00b7 saved \u2713';
+    return '';
+  } catch (e) { return ''; }
 }
 // Save the app-password when the field is done, never mid-keystroke. The old
 // 600ms auto-save stored whatever had been typed so far and then blanked the box,
@@ -317,10 +322,10 @@ function emailPassSave() {
   return (async () => {
     const r = await window.settings.emailSetPassword(pw);
     $('emailPass').value = '';
-    await refreshEmailPassState();
+    const problem = await refreshEmailPassState();
     $('emailStatus').textContent = (r && r.ok === false)
       ? ('Could not save the password: ' + (r.error || 'unknown error'))
-      : `Password saved (${(r && r.len) | 0} characters, encrypted).`;
+      : (problem || `Password saved (${(r && r.len) | 0} characters, encrypted).`);
   })();
 }
 $('emailPass').addEventListener('change', emailPassSave);
