@@ -15,14 +15,14 @@
       --solid: #1b1d24;
       --hair: rgba(255, 255, 255, .09);
       --sep: rgba(255, 255, 255, .06);
-      --fg: #f1f2f6; --muted: #a2a7b3; --faint: #737987;
+      --fg: #f1f2f6; --muted: #a2a7b3; --faint: #8b91a0;
       --row-hover: rgba(255, 255, 255, .05);
       --row-sel: rgba(255, 255, 255, .09);
       --tile: rgba(255, 255, 255, .07);
       --kbd: rgba(255, 255, 255, .08);
       --accent: #e8943c; --accent-soft: rgba(232, 148, 60, .18);
       --c-link: #6aa9ff; --c-folder: #f0b54a; --c-app: #b58cff; --c-file: #9fb3c8; --c-mail: #ff8a80;
-      --c-calc: #7fd08a; --c-time: #d49bff; --c-todo: #e8943c; --c-note: #f2cf5b; --c-sys: #c3c8d4; --c-search: #6aa9ff;
+      --c-calc: #7fd08a; --c-time: #d49bff; --c-todo: #e8943c; --c-note: #f2cf5b; --c-sys: #c3c8d4; --c-search: #6aa9ff; --c-text: #5fc9c0;
       --shadow: 0 18px 50px rgba(0, 0, 0, .45);
     }
     @media (prefers-color-scheme: light) {
@@ -31,14 +31,14 @@
         --solid: #f6f6f8;
         --hair: rgba(0, 0, 0, .10);
         --sep: rgba(0, 0, 0, .06);
-        --fg: #16181d; --muted: #5d6370; --faint: #8a909c;
+        --fg: #16181d; --muted: #5d6370; --faint: #666c79;
         --row-hover: rgba(0, 0, 0, .04);
         --row-sel: rgba(0, 0, 0, .07);
         --tile: rgba(0, 0, 0, .05);
         --kbd: rgba(0, 0, 0, .06);
         --accent-soft: rgba(232, 148, 60, .22);
         --c-link: #2f74e0; --c-folder: #c98a12; --c-app: #7b4fd6; --c-file: #5d7288; --c-mail: #d4473b;
-        --c-calc: #2f9447; --c-time: #9a4fd6; --c-todo: #c9721f; --c-note: #b08a0e; --c-sys: #5a6070; --c-search: #2f74e0;
+        --c-calc: #2f9447; --c-time: #9a4fd6; --c-todo: #c9721f; --c-note: #b08a0e; --c-sys: #5a6070; --c-search: #2f74e0; --c-text: #1f8f88;
         --shadow: 0 18px 50px rgba(0, 0, 0, .18);
       }
     }
@@ -71,7 +71,10 @@
     .row { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 11px; padding: 6px 10px 6px 7px; border-radius: 8px; cursor: default; transition: background .08s; }
     .row:hover { background: var(--row-hover); }
     .row[aria-selected="true"] { background: var(--row-sel); }
-    .row.off { opacity: .7; }
+    /* A row with nothing to run is a hint, so it never looks picked. */
+    .row.off, .row.off:hover, .row.off[aria-selected="true"] { background: transparent; }
+    .row.off { opacity: .8; }
+    .row.off .tile { background: transparent; box-shadow: inset 0 0 0 1px var(--hair); }
 
     .tile { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--tile); color: var(--k, var(--c-sys)); }
     .tile svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -85,11 +88,15 @@
     .row[data-icon="calc"], .row[data-icon="convert"] { --k: var(--c-calc); }
     .row[data-icon="timer"] { --k: var(--c-time); } .row[data-icon="todo"] { --k: var(--c-todo); }
     .row[data-icon="note"], .row[data-icon="notes"] { --k: var(--c-note); }
+    .row[data-icon="text"] { --k: var(--c-text); }
 
     .txt { min-width: 0; }
     .t { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .s { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .row.done .t { color: var(--faint); text-decoration: line-through; }
+    /* A help example: the command at full strength, the words that are yours quieter. */
+    .t.ex { color: var(--muted); }
+    .t.ex .lead { color: var(--fg); font: 600 13.5px/1.2 "Cascadia Mono", "SF Mono", ui-monospace, Consolas, monospace; }
     .row[data-kind="calc"] .t, .row[data-kind="convert"] .t { font: 600 20px/1.2 "Cascadia Mono", "SF Mono", ui-monospace, Consolas, monospace; letter-spacing: -.3px; }
 
     /* right side: only the selected row shows its verb; toggles always show state */

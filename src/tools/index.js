@@ -104,6 +104,8 @@ async function display(list) {
     icon: r.icon, hint: r.hint || '', section: r.section || '', sectionLabel: r.sectionLabel || '', toggle: !!r.toggle,
     // An existing to-do is its own checkbox; "Add to-do: ..." is not.
     checkbox: !!r.action && r.action.type === 'todoToggle',
+    // How many leading characters of the title are a command word (help rows).
+    lead: Number.isInteger(r.lead) && r.lead > 0 ? r.lead : 0,
     iconData: r.kind === 'shortcut' && ['app', 'folder', 'file'].includes(r.icon) ? await fileIcon(r.subtitle) : null,
   })));
 }

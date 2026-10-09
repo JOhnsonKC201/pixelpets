@@ -65,20 +65,28 @@ const textCommands = (t) => textfix.OPS.map((op) => command(t, 'text')(
 
 // "?" lists things to type. Enter on a row puts its starter in the box (`fill`)
 // instead of running anything, so the list teaches by letting you finish it.
-// A row with no `ex` here takes its example from the locale file.
+// A row with no `ex` here takes its example from the locale file. `lead` is the
+// part of the example that is the command ("todo"), which the launcher sets apart
+// from the words that are yours; it is the same in every language.
 const HELP_QUERY = '?';
 const HELP_ROWS = Object.freeze([
-  { id: 'calc', icon: 'calc', ex: '=12*7.5', fill: '=12*7.5' },
+  { id: 'calc', icon: 'calc', ex: '=12*7.5', fill: '=12*7.5', lead: '=' },
   { id: 'convert', icon: 'convert', ex: '5 km in mi', fill: '5 km in mi' },
-  { id: 'timer', icon: 'timer', fill: '10m ' },
-  { id: 'todo', icon: 'todo', fill: 'todo ' },
-  { id: 'note', icon: 'note', fill: 'note ' },
-  { id: 'search', icon: 'search', fill: 'g ' },
-  { id: 'text', icon: 'text', ex: 'upper', fill: 'text' },
+  { id: 'timer', icon: 'timer', fill: '10m ', lead: '10m' },
+  { id: 'todo', icon: 'todo', fill: 'todo ', lead: 'todo' },
+  { id: 'note', icon: 'note', fill: 'note ', lead: 'note' },
+  { id: 'search', icon: 'search', fill: 'g ', lead: 'g' },
+  { id: 'text', icon: 'text', ex: 'upper', fill: 'text', lead: 'upper' },
   { id: 'pin', icon: 'settings', action: { type: 'system', what: 'settings' } },
 ]);
-const helpItems = (t) => HELP_ROWS.map((row) => item('help', row.ex || t(`cmd.help.${row.id}.ex`), t(`cmd.help.${row.id}.sub`),
-  row.action || { type: 'fill', text: row.fill }, { icon: row.icon, stay: !row.action }));
+function helpRow(t, row, action, extra) {
+  const title = row.ex || t(`cmd.help.${row.id}.ex`);
+  // Only when the example really starts with it: a translation that reworded
+  // the command away gets no highlight rather than a wrong one.
+  const lead = row.lead && title.startsWith(row.lead) ? row.lead.length : 0;
+  return item('help', title, t(`cmd.help.${row.id}.sub`), action, { icon: row.icon, ...(lead ? { lead } : {}), ...extra });
+}
+const helpItems = (t) => HELP_ROWS.map((row) => helpRow(t, row, row.action || { type: 'fill', text: row.fill }, { stay: !row.action }));
 
 const helpCommand = (t) => command(t, 'system')(
   t('cmd.help.title'), t('cmd.help.sub'), { type: 'fill', text: HELP_QUERY }, { icon: 'info', stay: true }, 'cmd.help.title', 'cmd.help.keys');
@@ -102,7 +110,7 @@ const WAITING = Object.freeze({ todo: 'todo', note: 'note', g: 'search', ddg: 's
 function waitingFor(raw, t) {
   const m = /^\s*(todo|note|g|ddg|b)\s+$/i.exec(raw);
   const row = m && HELP_ROWS.find((r) => r.id === WAITING[m[1].toLowerCase()]);
-  return row ? [item('help', t(`cmd.help.${row.id}.ex`), t(`cmd.help.${row.id}.sub`), null, { icon: row.icon })] : null;
+  return row ? [helpRow(t, row, null)] : null;
 }
 
 function systemCommands(ctx, t) {

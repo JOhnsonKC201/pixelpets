@@ -171,3 +171,14 @@ test('help and the text fixers answer to whole words, so ordinary searches still
   assert.deepStrictEqual(top('how', quiet).action, { type: 'fill', text: '?' });
   assert.deepStrictEqual(top('upp', quiet).action, { type: 'textfix', op: 'upper' });
 });
+
+test('a help example says which part of it is the command, in every language', () => {
+  const i18n = require('../src/i18n');
+  for (const code of i18n.CODES) {
+    const t = i18n.translator(code);
+    const leads = suggest('?', ctx({ t })).map((r) => (r.lead ? r.title.slice(0, r.lead) : ''));
+    assert.deepStrictEqual(leads, ['=', '', '10m', 'todo', 'note', 'g', 'upper', ''], code);
+    assert.strictEqual(top('todo ', ctx({ t })).lead, 4, `${code}: the waiting row marks it too`);
+  }
+  assert.ok(!('lead' in top('gmail')), 'ordinary rows carry no lead');
+});

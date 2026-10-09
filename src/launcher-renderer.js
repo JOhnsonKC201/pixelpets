@@ -91,7 +91,13 @@
     if (item.toggle) li.setAttribute('aria-checked', String(!!item.checked));
 
     const txt = el('span', 'txt');
-    txt.append(el('div', 't', item.title), el('div', 's', item.subtitle));
+    const title = el('div', 't');
+    // A help example: main says how much of it is the command, by length.
+    if (item.lead > 0) {
+      title.classList.add('ex');
+      title.append(el('span', 'lead', item.title.slice(0, item.lead)), document.createTextNode(item.title.slice(item.lead)));
+    } else title.textContent = item.title;
+    txt.append(title, el('div', 's', item.subtitle));
     li.append(tile(item), txt, end(item, i));
     li.addEventListener('mousemove', () => { if (sel !== i) { sel = i; paintSelection(); } });
     li.addEventListener('click', () => run(i));
