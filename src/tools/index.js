@@ -57,6 +57,7 @@ function say(text, opts = {}) {
 
 function persistTools(patch) { const c = cfg(); d.persist({ ...c, tools: { ...c.tools, ...patch } }); }
 function persistTodos(todos) { d.persist({ ...cfg(), todos }); }
+function persistSnippets(snippets) { d.persist({ ...cfg(), snippets }); }
 
 // Today's list, rolled over to today first. A new day clears finished items.
 function today() {
@@ -70,7 +71,7 @@ function ctx() {
   const c = cfg();
   return {
     platform: process.platform, search: c.tools.search, shortcuts: c.tools.shortcuts,
-    todos: today(), timers, clips, clipboardOn: c.tools.clipboard,
+    todos: today(), timers, clips, clipboardOn: c.tools.clipboard, snippets: c.snippets,
     keepAwake: system.isKeepAwake(), now: Date.now(), t,
   };
 }
@@ -269,7 +270,7 @@ function registerIpc() {
 }
 
 const api = {
-  cfg, say, t, notify: (...a) => d.notify(...a), persistTools, persistTodos, today,
+  cfg, say, t, notify: (...a) => d.notify(...a), persistTools, persistTodos, persistSnippets, today,
   timers: () => timers, setTimers, clips: () => clips, rememberClip: (t) => { lastClip = t; },
   notesFile, sendAction: (id) => d.sendAction(id), triggerBreak: () => d.triggerBreak(),
   openSettings: () => d.openSettings(), rebuildTray: () => d.rebuildTray(),

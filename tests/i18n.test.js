@@ -30,10 +30,11 @@ const ctx = (over = {}) => ({
   todos: { day: '', items: [{ id: 't1', text: 'write', done: false }, { id: 't2', text: 'gym', done: true }], nudged: '' },
   timers: [{ id: 'tm1', endsAt: 5 * 60000, label: 'tea' }, { id: 'tm2', endsAt: 60000, label: '' }],
   clips: ['a clip'],
+  snippets: [{ name: 'tea', text: 'two sugars' }],
   ...over,
 });
 // Queries a route recognises by shape. What they return cannot depend on wording.
-const ROUTED = ['', '?', 'todo ', 'g ', '=1+1', '=bad', '5 km in mi', 'g cats', 'note milk', 'todo call', 'done 1', 'done 2', 'done 9', '10m', '10m tea', 'clip'];
+const ROUTED = ['', '?', 'todo ', 'g ', 'save ', ';', ';tea', 'save tea', 'save a;b', 'forget tea', 'forget nope', '=1+1', '=bad', '5 km in mi', 'g cats', 'note milk', 'todo call', 'done 1', 'done 2', 'done 9', '10m', '10m tea', 'clip'];
 // Plus the fuzzy list and the search-or-note fallback, which match on titles.
 const QUERIES = [...ROUTED, 'gmail', 'text', 'zzqqxx'];
 
@@ -87,7 +88,7 @@ test('every key the code asks for exists, and no key is left unused', () => {
   const files = ['tools/commands.js', 'tools/actions.js', 'tools/system.js', 'tools/index.js',
     'main/tray-menu.js', 'main/updater.js', 'main/notify-history.js', 'main/lang.js'];
   const code = files.map((f) => codeOnly(read(f))).join('\n');
-  const literal = new Set([...code.matchAll(/'((?:launcher|section|cmd|hint|calc|convert|search|note|clip|todo|timer|say|sys|nudge|hotkey|tray|ago)\.[\w.]+)'/g)].map((m) => m[1]));
+  const literal = new Set([...code.matchAll(/'((?:launcher|section|cmd|hint|calc|convert|search|note|clip|snippet|todo|timer|say|sys|nudge|hotkey|tray|ago)\.[\w.]+)'/g)].map((m) => m[1]));
   for (const key of literal) assert.ok(key in EN, `the code asks for "${key}", which en.json does not have`);
   // Keys built at run time: `cmd.snip.sub.${os}`, `section.${section}`, `pet.${id}.label`, `coat.${slug}`.
   const stems = [...code.matchAll(/`(?:[^`]*\$\{t\(`)?((?:launcher|section|cmd|pet|coat|jam)\.[\w.]*)\$\{/g)].map((m) => m[1]);
