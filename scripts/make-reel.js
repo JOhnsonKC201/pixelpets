@@ -9,10 +9,11 @@
 // an effect. Here `electron . --reel --state=<x>` runs the actual renderer, so a
 // pose is right by construction and a new pose costs a table row instead of a port.
 //
-//   node scripts/make-reel.js            # backdrop -> cards -> capture -> sheet -> encode
+//   node scripts/make-reel.js            # backdrop -> cards -> capture -> sheet -> encode -> clips
 //   node scripts/make-reel.js capture    # just re-shoot the frames
 //   node scripts/make-reel.js encode     # just re-cut the titles (frames are kept)
 //   node scripts/make-reel.js sheet      # contact sheet, one frame per move
+//   node scripts/make-reel.js clips      # the README banner and gallery, cut from the same frames
 //   node scripts/make-reel.js clean      # drop the ~450 MB of captured frames
 const fs = require('fs');
 const path = require('path');
@@ -36,6 +37,7 @@ const TITLE_S = 2.0, END_S = 3.0;
 const TITLE_FRAMES = Math.round(TITLE_S * FPS), END_FRAMES = Math.round(END_S * FPS);
 
 const TASKBAR_H = 56;
+const CLOCK_W = 132;                             // the clock block at the right end of the taskbar
 const FLOOR = H - TASKBAR_H;                     // top edge of the taskbar
 const FEET = FLOOR - 24;                         // where the pet's feet land
 
@@ -173,8 +175,8 @@ function buildBackdrop() {
     'vignette=PI/4.2',
     `drawbox=x=0:y=${FLOOR}:w=${W}:h=${TASKBAR_H}:color=0x0E1017@0.88:t=fill`,
     `drawbox=x=0:y=${FLOOR}:w=${W}:h=1:color=white@0.09:t=fill`,
-    text(time, { size: 16, y: FLOOR + 10, x: W - 132, f: 'semi', colour: 'white@0.9' }),
-    text(date, { size: 16, y: FLOOR + 30, x: W - 132, f: 'semi', colour: 'white@0.9' }),
+    text(time, { size: 16, y: FLOOR + 10, x: W - CLOCK_W, f: 'semi', colour: 'white@0.9' }),
+    text(date, { size: 16, y: FLOOR + 30, x: W - CLOCK_W, f: 'semi', colour: 'white@0.9' }),
   ].join(','), '-q:v', '2', BACKDROP], 'backdrop');
   console.log(`backdrop  ${rel(BACKDROP)}  ${W}x${H}  dimmed, softened, vignetted`);
 }
@@ -308,6 +310,80 @@ function encode() {
   console.log(`encoded   ${rel(OUT)}  ${W}x${H}  ${dur.toFixed(1)}s  ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB`);
 }
 
+// ---- 6. README clips --------------------------------------------------------
+// The README banner and the gallery tiles are CUT FROM THE REEL'S FRAMES, for the
+// same reason the reel films the app. scripts/make-demo-gif.js used to draw them,
+// and its copy of the cat had drifted from the real one (no tail, its own outline,
+// four poses), so the first image on the README was a pet nobody could install.
+//
+// A clip is one move cropped to the pet. The crop runs to the bottom of the frame,
+// so the pet stands on the taskbar rather than on the edge of the image, and it is
+// only as tall as the pose needs: every move is filmed at its own scale, so one
+// fixed window would cut the ears off one clip and leave the next one small in a
+// lot of wallpaper. The taskbar clock carries the capture date. It sits outside
+// every tile, and the full-width banner paints over it.
+const CLIP_HEADROOM = 90;                        // px above the pose, for hearts and sparks
+const GIF_FPS = 10;                              // every second frame, which halves the GIFs
+const TILE = { w: 340, h: 260 };
+const BANNER = { w: 960, h: 400 };
+const BANNER_MOVES = ['typing', 'pet', 'butterfly'];
+const TILES = [                                  // [file under assets/gallery, move id]
+  ['type', 'typing'], ['pet', 'pet'], ['climb', 'climb'], ['mochi', 'mochi'],
+  ['butterfly', 'butterfly'], ['hunt', 'hunt'], ['groom', 'groom'], ['loaf', 'loaf'],
+];
+
+const moveIndex = (id) => MOVES.findIndex((m) => m.id === id);
+
+// The window of the 1920x1080 frame a clip keeps, at the aspect of `out`. Several
+// moves share the tallest window any of them needs, so a cut between them does not
+// jump. A banner is wider than the frame is tall, so it is clamped to full width
+// and a tall pose can lose the top of its headroom there.
+function cropFor(moveIds, out) {
+  const even = (n) => 2 * Math.floor(n / 2);
+  const top = Math.min(...moveIds.map((id) => frameFor(MOVES[moveIndex(id)]).petTop));
+  const h = even(Math.min(H - top + CLIP_HEADROOM, H, W * out.h / out.w));
+  const w = even(h * out.w / out.h);
+  return { w, h, x: (W - w) / 2, y: H - h };
+}
+
+function cutClip(name, moveIds, out, { before = [], after = [] } = {}) {
+  const crop = cropFor(moveIds, out);
+  const inputs = moveIds.flatMap((id) => [
+    '-start_number', String(TITLE_FRAMES + moveIndex(id) * MOVE_FRAMES),
+    '-framerate', String(FPS), '-t', String(HOLD), '-i', path.join(FRAMES, 'f%05d.png')]);
+  const joined = moveIds.length > 1
+    ? `${moveIds.map((_, i) => `[${i}:v]`).join('')}concat=n=${moveIds.length}:v=1:a=0,` : '';
+  const chain = (fps) => joined + [...before, `crop=${crop.w}:${crop.h}:${crop.x}:${crop.y}`, `fps=${fps}`,
+    `scale=${out.w}:${out.h}:flags=lanczos`, ...after].join(',');
+  const base = path.join(ROOT, 'assets', name);
+  fs.mkdirSync(path.dirname(base), { recursive: true });
+
+  // A palette built from the clip itself, and an ordered dither. Bayer is fixed per
+  // pixel, so the still wallpaper encodes once and only the pet changes per frame.
+  ff([...inputs, '-filter_complex', `${chain(GIF_FPS)},split[a][b];[a]palettegen=stats_mode=full[p];`
+    + '[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle', `${base}.gif`], `${name}.gif`);
+  ff([...inputs, '-filter_complex', chain(FPS), '-c:v', 'libx264', '-preset', 'slow', '-crf', '20',
+    '-pix_fmt', 'yuv420p', '-an', '-movflags', '+faststart', `${base}.mp4`], `${name}.mp4`);
+  console.log(`clip      ${rel(base)}.gif  ${out.w}x${out.h}  ${(fs.statSync(`${base}.gif`).size / 1024).toFixed(0)} KB`);
+}
+
+function clips() {
+  const have = fs.existsSync(FRAMES) ? fs.readdirSync(FRAMES).filter((x) => x.endsWith('.png')).length : 0;
+  if (have < TITLE_FRAMES + MOVES.length * MOVE_FRAMES) { console.error('no frames yet; run `capture` first'); process.exit(1); }
+
+  // The wordmark sits in the left third, which every banner move leaves empty.
+  cutClip('hero-banner', BANNER_MOVES, BANNER, {
+    before: [`drawbox=x=${W - CLOCK_W - 16}:y=${FLOOR + 2}:w=${CLOCK_W + 16}:h=${TASKBAR_H - 2}:color=0x0E1017:t=fill`],
+    after: [
+      text('pixelpets', { size: 52, x: 48, y: 118 }),
+      `drawbox=x=50:y=190:w=48:h=3:color=${ORANGE}:t=fill`,
+      text('A CAT OR A DOG THAT', { size: 16, x: 50, y: 208, f: 'semi', colour: 'white@0.82' }),
+      text('LIVES ON YOUR DESKTOP', { size: 16, x: 50, y: 232, f: 'semi', colour: 'white@0.82' }),
+    ],
+  });
+  for (const [file, id] of TILES) cutClip(path.join('gallery', file), [id], TILE);
+}
+
 // ---- dispatch ---------------------------------------------------------------
 // The captured frames are kept after encoding on purpose: re-cutting titles is an
 // `encode` away, re-shooting ten Electron runs is not. They are also ~450 MB of
@@ -319,13 +395,14 @@ function clean() {
   console.log(`cleaned   ${rel(FRAMES)}  freed ${(bytes / 1024 / 1024).toFixed(0)} MB (run "capture" to rebuild)`);
 }
 
-const STEPS = { backdrop: buildBackdrop, cards: buildCards, capture, sheet, encode, clean,
-  all: () => { buildBackdrop(); capture(); sheet(); encode(); } };
+const STEPS = { backdrop: buildBackdrop, cards: buildCards, capture, sheet, encode, clips, clean,
+  all: () => { buildBackdrop(); capture(); sheet(); encode(); clips(); } };
 
 // Exported so tests/reel-spec.test.js can check the move table against the overlay
 // without running ffmpeg or Electron. Guarded so a require() does not start a build.
 module.exports = { MOVES, COAT, W, H, FPS, HOLD, MOVE_FRAMES, TITLE_FRAMES, END_FRAMES,
-  FEET, FLOOR, LABEL_BOTTOM, PET_CLEARANCE, frameFor };
+  FEET, FLOOR, LABEL_BOTTOM, PET_CLEARANCE, frameFor,
+  CLOCK_W, TILES, TILE, BANNER, BANNER_MOVES, cropFor };
 
 if (require.main === module) {
   const step = process.argv[2] || 'all';

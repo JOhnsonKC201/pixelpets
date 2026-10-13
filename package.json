@@ -33,11 +33,11 @@
     "soak": "electron . --soak=60",
     "check:hook": "electron scripts/hook-check.js",
     "demo": "node scripts/make-demo-gif.js mp4",
-    "demo:hero": "node scripts/make-demo-gif.js hero mp4",
     "demo:gallery": "node scripts/make-demo-gif.js gallery",
     "demo:carousel": "node scripts/make-demo-gif.js carousel",
     "demo:all": "node scripts/make-demo-gif.js all mp4",
     "reel": "node scripts/make-reel.js",
+    "reel:clips": "node scripts/make-reel.js clips",
     "frames:import": "node scripts/import-frames.js"
   },
   "devDependencies": {
