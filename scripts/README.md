@@ -34,13 +34,16 @@ read anything from the pull request beyond what the API hands them.
 
 ## Art and media generators
 
-All of these render from the same sprite geometry the app draws with, in pure
-Node, with no browser and no GPU.
+Anything that shows the pet doing something is filmed from the real renderer by
+`make-reel.js`. `make-demo-gif.js` draws its own copy of the cat in pure Node,
+which is quick but has drifted from the app (no tail, its own outline), so it is
+kept only for what the reel does not cover.
 
 | Script | Run via | Output |
 |---|---|---|
-| `make-demo-gif.js` | `npm run demo:all` | `assets/hero-banner.*`, `assets/gallery/*`, `assets/coat-carousel.gif`. The `demo` recipe is legacy and is not part of `all`. |
-| `make-reel.js` | `npm run reel` | `assets/pixelpets-reel.mp4`, the launch reel. Films the real renderer. |
+| `make-reel.js` | `npm run reel` | `assets/pixelpets-reel.mp4`, the launch reel, then `assets/hero-banner.*` and eight `assets/gallery/*` tiles cut from the same frames. Needs Electron to capture. |
+| `make-reel.js clips` | `npm run reel:clips` | Just recuts the banner and tiles from frames already captured. No Electron. |
+| `make-demo-gif.js` | `npm run demo:all` | `assets/coat-carousel.gif` and the two gallery tiles the reel does not film (`eat`, `sing`). The `demo` recipe is legacy and is not part of `all`. |
 | `make-social-card.js` | `npm run social` | `assets/social-card.png`, the GitHub and link-preview card. |
 | `make-logo-icons.js` | `npm run icon` | Every app and tray icon, from the master `assets/logo.png`. |
 | `logo-source.js` | library | Loads and rescales `logo.png`, and decodes PNGs for the climb slicer. |

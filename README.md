@@ -10,7 +10,7 @@ A pixel cat (or dog) that lives on your desktop.
 &nbsp;[![release](https://img.shields.io/github/v/release/JOhnsonKC201/pixelpets?style=flat-square&labelColor=15161d&color=E8930C)](https://github.com/JOhnsonKC201/pixelpets/releases/latest)
 &nbsp;[![license](https://img.shields.io/github/license/JOhnsonKC201/pixelpets?style=flat-square&labelColor=15161d&color=22C55E)](LICENSE)
 
-<img src="assets/hero-banner.gif" alt="a tuxedo cat on the desktop watches the cursor, kneads the keyboard while you type, and purrs when you pet it" width="880" />
+<img src="assets/hero-banner.gif" alt="the real pet, a tuxedo cat on a desktop: it kneads the keyboard while you type, purrs when you pet it, and swats at a butterfly" width="880" />
 
 **[Download for Windows](https://github.com/JOhnsonKC201/pixelpets/releases/latest)** &nbsp;·&nbsp; [macOS beta](https://github.com/JOhnsonKC201/pixelpets/releases/latest) &nbsp;·&nbsp; [Try it in your browser](https://pixelcat-jet.vercel.app)
 
@@ -52,12 +52,14 @@ If that makes you uneasy, that's reasonable. The browser demo needs no install, 
 <td align="center"><img src="assets/gallery/mochi.gif" width="190" alt="a tuxedo cat stretches like mochi when you drag it" /><br /><sub>dragging</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="assets/gallery/butterfly.gif" width="190" alt="a tuxedo cat tracks and plays with a butterfly" /><br /><sub>butterfly</sub></td>
-<td align="center"><img src="assets/gallery/hunt.gif" width="190" alt="a tuxedo cat crouches and pounces to hunt the cursor" /><br /><sub>hunting the cursor</sub></td>
-<td align="center"><img src="assets/gallery/eat.gif" width="190" alt="a tuxedo cat noms a fish treat with hearts" /><br /><sub>a treat</sub></td>
-<td align="center"><img src="assets/gallery/sing.gif" width="190" alt="a tuxedo cat sings, with floating music notes" /><br /><sub>singing</sub></td>
+<td align="center"><img src="assets/gallery/butterfly.gif" width="190" alt="a tuxedo cat rears up and swats at a butterfly" /><br /><sub>butterfly</sub></td>
+<td align="center"><img src="assets/gallery/hunt.gif" width="190" alt="a tuxedo cat crouches low to stalk the cursor" /><br /><sub>hunting the cursor</sub></td>
+<td align="center"><img src="assets/gallery/groom.gif" width="190" alt="a tuxedo cat licks a paw and washes its face" /><br /><sub>washing up</sub></td>
+<td align="center"><img src="assets/gallery/loaf.gif" width="190" alt="a tuxedo cat tucked into a loaf with its eyes closed" /><br /><sub>loafing when you go quiet</sub></td>
 </tr>
 </table>
+
+<p align="center"><sub>Every clip is the app itself, filmed on a desktop. <a href="assets/pixelpets-reel.mp4">Watch all ten moves in 30 seconds.</a></sub></p>
 
 Mostly it just reacts to you. Petting, dragging, typing and scrolling each get their own response, and it has moods: it can be sleepy, calm, playful, or tearing around with the zoomies.
 

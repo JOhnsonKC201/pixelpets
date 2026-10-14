@@ -1,11 +1,13 @@
-// Renders the README media - short looping clips that show what the desktop pet
-// DOES: it sits and follows your cursor, naps when idle, taps its paws when you
-// type, pounces to hunt, and purrs when you pet it. Pure JS, no browser / no
-// native deps: the sprite geometry comes from src/cat-sprite.js (single source of
-// truth) plus the pose composers copied from the overlay, all rasterised by hand
-// into RGBA frames and encoded with gifenc.
-//   Run:  node scripts/make-demo-gif.js [demo|hero|gallery|carousel|all] [mp4]
-//         npm run demo:all   # the three the README embeds
+// Draws short looping clips of the pet in pure JS, no browser / no native deps: the
+// sprite geometry comes from src/cat-sprite.js plus pose composers COPIED from the
+// overlay, all rasterised by hand into RGBA frames and encoded with gifenc.
+//
+// A copy drifts. This cat has no tail and its own outline, so it no longer draws
+// anything that claims to be the app: the README banner and most of the gallery are
+// filmed from the real renderer by scripts/make-reel.js (`clips`). What is left here
+// is the coat carousel, the two tiles the reel does not film yet, and the old demo.
+//   Run:  node scripts/make-demo-gif.js [demo|gallery|carousel|all] [mp4]
+//         npm run demo:all   # the gallery leftovers and the carousel
 const fs = require('fs');
 const path = require('path');
 const { GIFEncoder, quantize, applyPalette } = require('gifenc');
@@ -673,19 +675,14 @@ function recipeDemo(wantMp4) {
   if (wantMp4) encodeMp4(frames, A('pixelpets-demo.mp4'));
 }
 
-// wide cinematic banner (960x360) -> assets/hero-banner.{gif,mp4}
-function recipeHero(wantMp4) {
-  setCanvas(960, 360, 8, 316); SP = buildPoses(TUX); PAL = paletteFor(S.PATTERNS[TUX]);
-  const frames = [];
-  sceneIntro(frames, { title: true, titleScale: 9, caption: 'A CAT OR A DOG THAT LIVES ON YOUR DESKTOP', capScale: 3, n: 30 });
-  sceneType(frames, { n: 22 });
-  scenePet(frames, { n: 26 });
-  maybeDump(frames, 'hero');
-  encodeGif(frames, A('hero-banner.gif'));
-  if (wantMp4) encodeMp4(frames, A('hero-banner.mp4'));
-}
+// The hero banner and these tiles are filmed from the real app now and cut by
+// `node scripts/make-reel.js clips`. The cat in this file is a copy and had drifted
+// from the one people install, so drawing them here as well would put the copy back
+// on top of real footage.
+const FILMED = new Set(['climb', 'type', 'butterfly', 'pet', 'mochi', 'hunt']);
 
-// six looping micro-GIFs (340x260) -> assets/gallery/<name>.gif (+ .mp4 with `mp4`)
+// the looping micro-GIFs the reel does not film yet (340x260)
+//   -> assets/gallery/<name>.gif (+ .mp4 with `mp4`)
 function recipeGallery(wantMp4) {
   const items = [
     ['climb', (f) => sceneClimb(f)],
@@ -697,7 +694,7 @@ function recipeGallery(wantMp4) {
     ['mochi', (f) => sceneMochi(f, { n: 30 })],
     ['hunt', (f) => sceneHunt(f, { n: 24 })],
   ];
-  for (const [name, build] of items) {
+  for (const [name, build] of items.filter(([n]) => !FILMED.has(n))) {
     setCanvas(340, 260, 6, 214); SP = buildPoses(TUX); PAL = paletteFor(S.PATTERNS[TUX]);
     const frames = [];
     build(frames);
@@ -728,16 +725,15 @@ function recipeCarousel() {
 }
 
 // ---- dispatch ---------------------------------------------------------------
-//   node scripts/make-demo-gif.js [demo|hero|gallery|carousel|all] [mp4]
+//   node scripts/make-demo-gif.js [demo|gallery|carousel|all] [mp4]
 const arg = process.argv[2];
 const recipe = (arg && arg !== 'mp4') ? arg : 'demo';
 const wantMp4 = process.argv.includes('mp4');
 const RECIPES = {
   demo: () => recipeDemo(wantMp4),
-  hero: () => recipeHero(wantMp4),
   gallery: () => recipeGallery(wantMp4),
   carousel: () => recipeCarousel(),
-  all: () => { recipeHero(wantMp4); recipeGallery(wantMp4); recipeCarousel(); },
+  all: () => { recipeGallery(wantMp4); recipeCarousel(); },
 };
-if (!RECIPES[recipe]) { console.error(`unknown recipe: ${recipe} (expected demo|hero|gallery|carousel|all)`); process.exit(1); }
+if (!RECIPES[recipe]) { console.error(`unknown recipe: ${recipe} (expected demo|gallery|carousel|all)`); process.exit(1); }
 RECIPES[recipe]();

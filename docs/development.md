@@ -137,11 +137,16 @@ Palette, naming and the checks the importer runs are in
 
 ## README media
 
-The hero banner, the gallery, and the coat carousel are all rendered from the
-same sprite geometry by `scripts/make-demo-gif.js`, in pure Node with no browser
-or GPU. Regenerate any one with
-`node scripts/make-demo-gif.js <hero|gallery|carousel> [mp4]`, or all three with
-`npm run demo:all`.
+The hero banner and the gallery are footage of the real app. `npm run reel`
+captures ten moves with Electron into `previews/reel/all/` and cuts the launch
+reel, the banner and the gallery tiles from those frames. If the frames are
+already there, `npm run reel:clips` recuts the banner and tiles on their own and
+does not need Electron.
+
+The coat carousel is still drawn by `scripts/make-demo-gif.js`, in pure Node with
+no browser or GPU (`npm run demo:carousel`). That script draws its own copy of
+the cat, which has drifted from the app, so do not use it for anything that is
+meant to show what the pet looks like.
 
 ## Releasing
 

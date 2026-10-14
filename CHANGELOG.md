@@ -4,6 +4,9 @@ Notable changes to **pixelpets**. All art and sound are original/procedural (no 
 
 ## [Unreleased]
 
+### Docs
+- **The README shows the pet you actually get.** The banner and the gallery were drawn by a script that carried its own copy of the cat, and the copy had drifted: no tail, a different outline, and only four of the poses. They are now cut from footage of the app itself, the same frames the launch reel uses, so the first picture on the page is the real thing. Two tiles changed with it: the treat and the singing clips are replaced by washing up and loafing, which are filmed.
+
 ## [0.5.0] - 2026-10-09
 
 ### Settings window

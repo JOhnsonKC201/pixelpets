@@ -98,3 +98,37 @@ test('labels are safe to hand to ffmpeg and safe to publish', () => {
     seen.add(m.label);
   }
 });
+
+test('the README clips are cut from moves the reel films, and each crop holds its pet', () => {
+  const ids = new Set(reel.MOVES.map((m) => m.id));
+  for (const id of [...reel.BANNER_MOVES, ...reel.TILES.map(([, move]) => move)]) {
+    assert.ok(ids.has(id), `a README clip is cut from "${id}", which is not a move in MOVES`);
+  }
+
+  for (const [file, id] of reel.TILES) {
+    const crop = reel.cropFor([id], reel.TILE);
+    const petTop = reel.frameFor(reel.MOVES.find((m) => m.id === id)).petTop;
+    assert.ok(crop.x >= 0 && crop.y >= 0 && crop.x + crop.w <= reel.W && crop.y + crop.h === reel.H,
+      `the ${file} tile crops outside the frame or stops short of the floor: ${JSON.stringify(crop)}`);
+    assert.ok(crop.y < petTop, `the ${file} tile starts below the top of its own pose`);
+    // The taskbar clock is the capture date. A tile that reached it would publish it.
+    assert.ok(crop.x + crop.w <= reel.W - reel.CLOCK_W,
+      `the ${file} tile is wide enough to include the taskbar clock`);
+    // ffmpeg's yuv420p refuses odd dimensions, and says so only at encode time.
+    assert.ok(crop.w % 2 === 0 && crop.h % 2 === 0, `the ${file} tile has an odd crop size`);
+  }
+
+  const banner = reel.cropFor(reel.BANNER_MOVES, reel.BANNER);
+  assert.ok(banner.w <= reel.W && banner.y >= 0, `the banner crops outside the frame: ${JSON.stringify(banner)}`);
+});
+
+test('every gallery tile the README shows is one the reel cuts', () => {
+  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  const shown = [...readme.matchAll(/assets\/gallery\/([a-z]+)\.gif/g)].map((m) => m[1]);
+  const cut = new Set(reel.TILES.map(([file]) => file));
+  assert.ok(shown.length > 0, 'the README no longer embeds a gallery');
+  for (const file of shown) {
+    assert.ok(cut.has(file), `README shows gallery/${file}.gif, which is not filmed from the real app. `
+      + 'Add the move to MOVES and TILES in scripts/make-reel.js rather than drawing it by hand.');
+  }
+});
