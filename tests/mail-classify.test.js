@@ -12,6 +12,15 @@ test('a rejected login says so, though ImapFlow only reports "Command failed"', 
   assert.match(classify(Object.assign(new Error('Command failed'), { serverResponseCode: 'AUTHENTICATIONFAILED' })), /^Authentication failed/);
 });
 
+test('a throttled login is not blamed on the password', () => {
+  // The shape imapflow 2.3+ produces when Microsoft 365 throttles LOGIN: the
+  // credential was never judged, so "check your app-password" is wrong advice.
+  const e = Object.assign(new Error('Command failed'), { responseStatus: 'BAD', code: 'ETHROTTLE', throttleReset: 1000 });
+  const msg = classify(e);
+  assert.doesNotMatch(msg, /Authentication failed/);
+  assert.doesNotMatch(msg, /Could not connect to the mailbox/);
+});
+
 test('the other failures keep their messages', () => {
   assert.match(classify(Object.assign(new Error('x'), { code: 'CONNECT_TIMEOUT' })), /timed out/);
   assert.match(classify(new Error('getaddrinfo ENOTFOUND nonexistent.invalid')), /Could not reach the mail server/);

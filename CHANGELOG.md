@@ -4,6 +4,9 @@ Notable changes to **pixelpets**. All art and sound are original/procedural (no 
 
 ## [Unreleased]
 
+### Mail
+- **A throttled sign-in no longer blames your password.** When Microsoft 365 rate-limits logins, the Settings "Test" button said "Authentication failed - check your email and app-password", which sent people off to make a new app-password for nothing. It now says the server is limiting sign-ins and to try again in a minute.
+
 ### Docs
 - **The README shows the pet you actually get.** The banner and the gallery were drawn by a script that carried its own copy of the cat, and the copy had drifted: no tail, a different outline, and only four of the poses. They are now cut from footage of the app itself, the same frames the launch reel uses, so the first picture on the page is the real thing. Two tiles changed with it: the treat and the singing clips are replaced by washing up and loafing, which are filmed.
 

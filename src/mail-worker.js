@@ -13,6 +13,11 @@ function classify(e) {
     return 'Authentication failed - check your email and app-password.';
   }
   const code = String((e && e.code) || '').toLowerCase();
+  // A throttled login (Microsoft 365, imapflow 2.3+) never judged the password,
+  // so it must not send the user off to make a new app-password.
+  if (code === 'ethrottle') {
+    return 'The mail server is limiting sign-ins right now - wait a minute and test again.';
+  }
   const m = String((e && e.message) || e || '').toLowerCase();
   // timeouts first: ImapFlow's connect/greeting timeout uses code CONNECT_TIMEOUT and
   // the message "...establish connection in required time" (no literal "timeout").
