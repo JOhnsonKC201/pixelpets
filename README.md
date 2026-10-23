@@ -164,10 +164,10 @@ npm start
 npm test           # the test suite (no Electron window or GPU needed)
 npm run lint       # what CI runs, along with the tests and a real boot check
 npm run poses:cat  # contact sheet of every activity in every coat
-npm run demo:all   # rebuild the GIFs in this README
+npm run reel       # film the banner and gallery in this README from the real app
 ```
 
-Almost everything is drawn in code at runtime: one sprite, recoloured per coat, which is why every coat gets every pose. The only painted frames are the rope climb on four of the coats. There are no sound files either. The meows, barks and purrs are synthesized as they play. The GIFs above are rendered by that same code, not screen-recorded, because the overlay is GPU-composited and ordinary screenshots can't capture it.
+Almost everything is drawn in code at runtime: one sprite, recoloured per coat, which is why every coat gets every pose. The only painted frames are the rope climb on four of the coats. There are no sound files either. The meows, barks and purrs are synthesized as they play. The overlay is GPU-composited, so ordinary screen recorders can't see it. The banner and gallery above are filmed by running the app itself in a capture mode.
 
 - [How it works](docs/architecture.md): the sprite system and the project layout
 - [Development](docs/development.md): running from source, building installers, visual QA
