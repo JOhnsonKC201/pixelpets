@@ -26,7 +26,8 @@ npm run check:hook        # does the global input hook load on this Electron?
 npm run poses:cat         # previews/cat-poses.png (every activity x every coat)
 npm run poses:dog         # the same for the Black Lab
 npm run frames:import -- <dir>   # import painted PNGs as baked poses
-npm run demo:all          # regenerate the README media (hero, gallery, carousel)
+npm run reel              # film the README banner and gallery from the real app
+npm run demo:carousel     # redraw the coat carousel (drifted copy of the cat)
 npm run hook -- cursor    # print a path-filled agent hook config
 npm run icon              # regenerate the tray + app-tile icons
 ```
