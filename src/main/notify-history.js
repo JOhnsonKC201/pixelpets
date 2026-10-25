@@ -6,6 +6,10 @@ const { translator, FALLBACK } = require('../i18n');
 const EN = translator(FALLBACK);
 const NOTIFY_HISTORY_MAX = 50;
 const SAVE_DEBOUNCE_MS = 1500;
+// Entries from these carry other people's words (a sender and subject, a meeting
+// title). They stay in the in-memory recap for this session but are never written:
+// the logger keeps addresses off disk, and a history file must not undo that.
+const MEMORY_ONLY = new Set(['email', 'calendar']);
 
 /**
  * @param {object} deps
@@ -19,7 +23,9 @@ function makeNotifyHistory({ filePath, onChange = () => {} }) {
   function load() {
     try {
       const a = JSON.parse(fs.readFileSync(filePath(), 'utf8'));
-      if (Array.isArray(a)) items = a.slice(-NOTIFY_HISTORY_MAX);
+      // Filtered on the way in too, so a file written by an older version stops
+      // carrying mail subjects the next time it is saved.
+      if (Array.isArray(a)) items = a.filter((n) => n && !MEMORY_ONLY.has(n.source)).slice(-NOTIFY_HISTORY_MAX);
     } catch (e) { items = []; }
   }
 
@@ -31,7 +37,8 @@ function makeNotifyHistory({ filePath, onChange = () => {} }) {
     const fp = filePath();
     try {
       const tmp = `${fp}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify(items.slice(-NOTIFY_HISTORY_MAX)));
+      const keep = items.slice(-NOTIFY_HISTORY_MAX).filter((n) => !MEMORY_ONLY.has(n.source));
+      fs.writeFileSync(tmp, JSON.stringify(keep));
       fs.renameSync(tmp, fp);
     } catch (e) { /* best effort */ }
   }

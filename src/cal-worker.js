@@ -3,6 +3,7 @@
 // then exits. Runs in its own process so a slow/large feed can't stall the overlay.
 // The .ics URL is a secret (it grants read access to the calendar) - never logged.
 const http = require('http'), https = require('https'), dnsp = require('dns').promises, net = require('net');
+const { cleanText } = require('./clean-text');
 const MAX_ICS_BYTES = 5 * 1024 * 1024;   // refuse feeds larger than 5 MB
 const MAX_REDIRECTS = 4;
 const FETCH_TIMEOUT = 20000;             // ms per hop
@@ -20,8 +21,16 @@ function classify(e) {
 // --- SSRF guard: only fetch public http(s) hosts. Blocks loopback, private,
 // link-local (incl. cloud metadata 169.254.169.254), CGNAT, and reserved ranges,
 // and re-checks the target on every redirect hop. ---------------------------
+// Ranges are matched as real CIDR blocks, not by how the address happens to be
+// spelled: "fe80" as a text prefix let fe81:: through febf:: past.
+const RESERVED = new net.BlockList();
+for (const [addr, bits] of [['192.0.0.0', 24], ['198.18.0.0', 15]]) RESERVED.addSubnet(addr, bits, 'ipv4');
+for (const [addr, bits] of [['fe80::', 10], ['fec0::', 10], ['fc00::', 7], ['2001::', 32], ['100::', 64]]) {
+  RESERVED.addSubnet(addr, bits, 'ipv6');
+}
 function isBlockedIp(ip) {
   const v = net.isIP(ip);
+  if (v && RESERVED.check(ip, v === 4 ? 'ipv4' : 'ipv6')) return true;
   if (v === 4) {
     const p = ip.split('.').map(Number);
     if (p[0] === 0 || p[0] === 127 || p[0] === 10) return true;
@@ -94,7 +103,6 @@ async function fetchIcsSafely(start) {
   throw new Error('blocked: too many redirects');
 }
 
-// Only run the fork protocol when launched as the forked entry point; when this file
 // How long a parsed VEVENT lasts, in ms. Used to give every emitted occurrence an
 // end time. Falls back to 30 minutes when DTEND (and any DURATION node-ical has
 // resolved into it) is missing or nonsensical, and clamps to a day so one broken
@@ -110,7 +118,55 @@ function durationOf(ev) {
   return Math.min(d, MAX_EVENT_MS);
 }
 
-// is require()'d (e.g. from a unit test) just expose the pure functions below.
+// node-ical keys EXDATE and RECURRENCE-ID entries by the occurrence's ISO time.
+function occurrenceGone(ev, t) {
+  const key = new Date(t).toISOString();
+  if (ev.exdate && ev.exdate[key]) return true;
+  const over = ev.recurrences && ev.recurrences[key];
+  return !!(over && String(over.status || '').toUpperCase() === 'CANCELLED');
+}
+
+// Upcoming events from a parsed feed, soonest first. Pure, so the rules about
+// which invites count are testable without a network.
+function eventsFrom(data, now) {
+  const horizon = now + 26 * 3600 * 1000;
+  const floor = now - 60 * 1000;   // allow a 1-min grace for just-passed leads
+  const out = [];
+  for (const k in data) {
+    const ev = data[k];
+    if (!ev || ev.type !== 'VEVENT') continue;
+    // A cancelled meeting is gone. One marked "free" still gets its reminder but
+    // is flagged, so Focus Guard (focus.meetingNow) does not hold your messages
+    // for it: anyone who can put an invite on the feed (Google adds them unasked)
+    // could otherwise silence the pet for the length of it.
+    if (String(ev.status || '').toUpperCase() === 'CANCELLED') continue;
+    const free = String(ev.transparency || '').toUpperCase() === 'TRANSPARENT';
+    const summary = cleanText(ev.summary, 80) || 'Event';
+    const uid = String(ev.uid || k);
+    // How long the event runs, carried onto every occurrence. Focus Guard needs an
+    // END to answer "am I in a meeting right now?" - a start alone only ever says
+    // "one began at some point". A VEVENT may legitimately carry no DTEND, so fall
+    // back to the 30 minutes that is the overwhelmingly common default meeting.
+    const lenMs = durationOf(ev);
+    if (ev.rrule) {
+      let occ;
+      try { occ = ev.rrule.between(new Date(floor), new Date(horizon), true) || []; } catch (e) { occ = []; }
+      for (const d of occ) {
+        const t = d.getTime();
+        if (t < floor || t > horizon || occurrenceGone(ev, t)) continue;
+        out.push({ uid: uid + ':' + t, start: t, end: t + lenMs, summary, free });
+      }
+    } else if (ev.start) {
+      const t = new Date(ev.start).getTime();
+      if (Number.isFinite(t) && t >= floor && t <= horizon) out.push({ uid, start: t, end: t + lenMs, summary, free });
+    }
+  }
+  out.sort((a, b) => a.start - b.start);
+  return out.slice(0, 100);
+}
+
+// Only run the fork protocol when launched as the forked entry point; when this file
+// is require()'d (e.g. from a unit test) just expose the pure functions.
 if (require.main === module || process.parentPort) {
 const { onJob, reply, exitSoon } = require('./worker-port');
 onJob(async (msg) => {
@@ -121,34 +177,7 @@ onJob(async (msg) => {
     const ical = require('node-ical');
     const text = await fetchIcsSafely(url);            // SSRF-guarded fetch (scheme + IP allowlist, size cap, redirects re-checked)
     const data = await ical.async.parseICS(text);
-    const now = Date.now();
-    const horizon = now + 26 * 3600 * 1000;
-    const floor = now - 60 * 1000;   // allow a 1-min grace for just-passed leads
-    const out = [];
-    for (const k in data) {
-      const ev = data[k];
-      if (!ev || ev.type !== 'VEVENT') continue;
-      const summary = String(ev.summary || 'Event').slice(0, 80);
-      const uid = String(ev.uid || k);
-      // How long the event runs, carried onto every occurrence. Focus Guard needs an
-      // END to answer "am I in a meeting right now?" - a start alone only ever says
-      // "one began at some point". A VEVENT may legitimately carry no DTEND, so fall
-      // back to the 30 minutes that is the overwhelmingly common default meeting.
-      const lenMs = durationOf(ev);
-      if (ev.rrule) {
-        let occ = [];
-        try { occ = ev.rrule.between(new Date(floor), new Date(horizon), true) || []; } catch (e) { occ = []; }
-        for (const d of occ) {
-          const t = d.getTime();
-          if (t >= floor && t <= horizon) out.push({ uid: uid + ':' + t, start: t, end: t + lenMs, summary });
-        }
-      } else if (ev.start) {
-        const t = new Date(ev.start).getTime();
-        if (Number.isFinite(t) && t >= floor && t <= horizon) out.push({ uid, start: t, end: t + lenMs, summary });
-      }
-    }
-    out.sort((a, b) => a.start - b.start);
-    send({ ok: true, events: out.slice(0, 100) });
+    send({ ok: true, events: eventsFrom(data, Date.now()) });
   } catch (e) {
     send({ ok: false, error: classify(e) });
   } finally {
@@ -160,4 +189,4 @@ onJob(async (msg) => {
 setTimeout(() => process.exit(0), 30000);
 }
 
-module.exports = { isBlockedIp, assertSafeUrl, fetchIcsSafely, durationOf, DEFAULT_EVENT_MS, MAX_EVENT_MS };
+module.exports = { isBlockedIp, assertSafeUrl, fetchIcsSafely, durationOf, eventsFrom, DEFAULT_EVENT_MS, MAX_EVENT_MS };

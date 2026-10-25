@@ -8,6 +8,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { StringDecoder } = require('string_decoder');
 
 // The two bridge filenames keep the old pixelcat name on purpose. They are a
 // published contract, not branding: users have already pasted these paths into
@@ -29,6 +30,34 @@ const LEVELS = ['info', 'success', 'warn', 'alert'];
 const MAX_PARTIAL_LINE = 65536;   // a writer that never sends a newline cannot grow memory without bound
 const SEEN_MAX = 500, SEEN_KEEP = 250;
 const POLL_MS = 500;
+// One read never allocates more than this. A writer that dumps a gigabyte is
+// drained a slice per tick instead of in one buffer that size.
+const MAX_READ = 256 * 1024;
+// Every record carries its own id, so dedupe never merges them: a script that
+// posts a hundred lines would be a hundred toasts and a hundred meows, and would
+// push everything else out of the tray recap. Past this burst the rest is dropped
+// and one quiet line says so.
+const DEFAULT_BURST = { max: 8, windowMs: 10000 };
+const FLOOD_MESSAGE = 'More messages from your tools than I can show. Skipping the rest for a moment.';
+
+/**
+ * Fixed-window counter. take() answers 'ok', then 'first-drop' once per window
+ * (the moment to say something), then 'drop'. Pure apart from the injected clock.
+ */
+function makeBurstLimiter({ max, windowMs, now = Date.now }) {
+  let start = -Infinity, used = 0, dropped = false;
+  return {
+    take() {
+      const t = now();
+      // t < start: the clock stepped back (NTP, resume); start over rather than
+      // wait out a window that would now never end.
+      if (t < start || t - start >= windowMs) { start = t; used = 0; dropped = false; }
+      if (used < max) { used += 1; return 'ok'; }
+      if (!dropped) { dropped = true; return 'first-drop'; }
+      return 'drop';
+    },
+  };
+}
 
 /**
  * Turn one parsed JSON line into notify() arguments, or null to drop it.
@@ -57,11 +86,14 @@ function sanitizeRecord(o) {
  */
 function makeLineReader() {
   let tail = '';
+  // Reads land on byte offsets, not character boundaries; the decoder holds a
+  // torn multi-byte character until the rest of it arrives.
+  let decoder = new StringDecoder('utf8');
   const seen = new Set();
   return {
-    reset() { tail = ''; },
+    reset() { tail = ''; decoder = new StringDecoder('utf8'); },
     feed(chunk) {
-      tail += chunk;
+      tail += typeof chunk === 'string' ? chunk : decoder.write(chunk);
       const lines = tail.split('\n');
       tail = lines.pop();
       if (tail.length > MAX_PARTIAL_LINE) tail = '';
@@ -88,7 +120,17 @@ function makeLineReader() {
  * @param {(message: string, opts: object) => void} deps.onMessage
  * @returns {{ stop(): void }}
  */
-function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, notifyFile = NOTIFY_FILE }) {
+function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, notifyFile = NOTIFY_FILE, burst = DEFAULT_BURST }) {
+  const limiter = burst ? makeBurstLimiter(burst) : null;
+  const deliver = (rec) => {
+    const verdict = limiter ? limiter.take() : 'ok';
+    if (verdict === 'ok') onMessage(rec.message, rec.opts);
+    else if (verdict === 'first-drop') {
+      // Fixed options: this is the pet talking, not the flooder, so it borrows
+      // neither the dropped record's title nor its up-to-30-second toast.
+      onMessage(FLOOD_MESSAGE, { source: 'bridge', dedupeKey: 'bridge:flood', title: 'pixelpets', level: 'info', ttl: 6000, sound: false });
+    }
+  };
   let lastAgent = '';
   const pushAgent = () => {
     if (!isAlive()) return;
@@ -102,22 +144,24 @@ function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, noti
   const reader = makeLineReader();
   let offset = 0;
   try { offset = fs.statSync(notifyFile).size; } catch (e) { offset = 0; }
+  let more = null;   // a pending follow-up slice, so a flood never blocks the loop
   const pushNotify = () => {
     if (!isAlive()) return;
     let size;
     try { size = fs.statSync(notifyFile).size; } catch (e) { return; }
     if (size < offset) { offset = 0; reader.reset(); }   // truncated/rotated
     if (size === offset) return;
-    let chunk;
+    let buf;
     try {
       const fd = fs.openSync(notifyFile, 'r');
-      const buf = Buffer.alloc(size - offset);
-      fs.readSync(fd, buf, 0, buf.length, offset);
-      fs.closeSync(fd);
-      chunk = buf.toString('utf8');
+      try {
+        buf = Buffer.alloc(Math.min(MAX_READ, size - offset));
+        buf = buf.subarray(0, fs.readSync(fd, buf, 0, buf.length, offset));
+      } finally { fs.closeSync(fd); }
     } catch (e) { return; }
-    offset = size;
-    for (const rec of reader.feed(chunk)) onMessage(rec.message, rec.opts);
+    offset += buf.length;
+    for (const rec of reader.feed(buf)) deliver(rec);
+    if (offset < size && !more) more = setImmediate(() => { more = null; pushNotify(); });
   };
 
   try { lastAgent = fs.readFileSync(agentFile, 'utf8').trim(); } catch (e) { /* none yet */ }
@@ -136,9 +180,10 @@ function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, noti
   return {
     stop() {
       if (timer) { clearInterval(timer); timer = null; }
+      if (more) { clearImmediate(more); more = null; }
       if (watcher) { try { watcher.close(); } catch (e) { /* ignore */ } watcher = null; }
     },
   };
 }
 
-module.exports = { AGENT_FILE, NOTIFY_FILE, sanitizeRecord, makeLineReader, watchBridge };
+module.exports = { AGENT_FILE, NOTIFY_FILE, MAX_READ, sanitizeRecord, makeLineReader, makeBurstLimiter, watchBridge };

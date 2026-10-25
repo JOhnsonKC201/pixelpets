@@ -291,3 +291,5 @@ Flags: `--title <T>`, `--level info|success|warn|alert`, `--ttl <ms>`,
 `--no-sound`. The script appends one JSON line to `%TEMP%/pixelcat-notify.jsonl`
 and the running pet tails the file. Lines written before the pet launched are
 ignored (no backlog replay), and calling it while the pet is closed is harmless.
+At most 8 messages are shown per 10 seconds; past that the pet says once, quietly,
+that it is skipping the rest, so a runaway script cannot bury you in toasts.

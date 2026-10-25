@@ -53,6 +53,7 @@ function meetingNow(events, now) {
   let best = null;
   for (const ev of events) {
     if (!ev || !Number.isFinite(ev.start) || !Number.isFinite(ev.end)) continue;
+    if (ev.free) continue;                                 // shown as "free" on the calendar
     if (ev.end - ev.start > MAX_MEETING_MS) continue;      // an all-day block, not a meeting
     if (ev.end <= ev.start) continue;                      // zero/negative length: not a window
     if (now < ev.start || now >= ev.end) continue;         // [start, end)

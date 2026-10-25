@@ -9,7 +9,10 @@ const MAX_SHORTCUTS = 30;
 const MAX_LABEL = 40;
 const MAX_TARGET = 1000;
 const URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
-const INDIRECT_FILES = /\.(url|website|scf|webloc|inetloc)$/i;
+// Files Explorer acts on by itself: internet shortcuts, shell commands, libraries
+// and saved searches (both can name a UNC share), Settings links, themes (remote
+// wallpaper URLs), Remote Desktop files and ClickOnce manifests.
+const INDIRECT_FILES = /\.(url|website|scf|webloc|inetloc|library-ms|search-ms|searchconnector-ms|settingcontent-ms|theme|themepack|deskthemepack|rdp|appref-ms|application)$/i;
 
 // Returns { kind: 'url' | 'path', value } or null.
 function validateTarget(target, pathApi = path) {

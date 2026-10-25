@@ -180,8 +180,9 @@ function normalize(cfg) {
         secure,
         intervalMin: clampInt(e.intervalMin, 1, 60, 5),
         // Senders that interrupt you even while Focus Guard is holding mail back.
-        // Matched case-insensitively against the From address, as a substring, so
-        // "@acme.com" whitelists a whole company and "boss@acme.com" one person.
+        // Matched case-insensitively against the From address (mail.isVip):
+        // "@acme.com" is a whole company and its subdomains, "boss@acme.com" exactly
+        // one person.
         // Bounded and de-duped: this list is written by hand and read on every poll.
         vip: Array.from(new Set(
           (Array.isArray(e.vip) ? e.vip : [])
