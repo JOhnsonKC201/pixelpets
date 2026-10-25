@@ -64,3 +64,15 @@ test('a stored label cannot disguise the target, and ids are de-duplicated', () 
   assert.strictEqual(out[0].label, 'evil.bat');
   assert.notStrictEqual(out[0].id, out[1].id);
 });
+
+test('shell files that reach the network or run commands by themselves are refused', () => {
+  // Each of these points Explorer somewhere this check never sees: a library or
+  // saved search can name a UNC share (an NTLM hash leak on open), a theme can pull
+  // a remote wallpaper, .rdp connects out, ClickOnce manifests install and run.
+  const risky = ['lib.library-ms', 'q.search-ms', 'c.searchConnector-ms', 's.settingcontent-ms',
+    'w.theme', 'w.themepack', 'w.deskthemepack', 'box.rdp', 'app.appref-ms', 'app.application'];
+  for (const name of risky) {
+    assert.strictEqual(validateTarget(`C:\\Users\\me\\Desktop\\${name}`, path.win32), null, name);
+  }
+  assert.strictEqual(validateTarget('C:\\Users\\me\\Documents\\report.pdf', path.win32).kind, 'path', 'ordinary files still pin');
+});
