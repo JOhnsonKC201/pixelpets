@@ -21,8 +21,16 @@ function classify(e) {
 // --- SSRF guard: only fetch public http(s) hosts. Blocks loopback, private,
 // link-local (incl. cloud metadata 169.254.169.254), CGNAT, and reserved ranges,
 // and re-checks the target on every redirect hop. ---------------------------
+// Ranges are matched as real CIDR blocks, not by how the address happens to be
+// spelled: "fe80" as a text prefix let fe81:: through febf:: past.
+const RESERVED = new net.BlockList();
+for (const [addr, bits] of [['192.0.0.0', 24], ['198.18.0.0', 15]]) RESERVED.addSubnet(addr, bits, 'ipv4');
+for (const [addr, bits] of [['fe80::', 10], ['fec0::', 10], ['fc00::', 7], ['2001::', 32], ['100::', 64]]) {
+  RESERVED.addSubnet(addr, bits, 'ipv6');
+}
 function isBlockedIp(ip) {
   const v = net.isIP(ip);
+  if (v && RESERVED.check(ip, v === 4 ? 'ipv4' : 'ipv6')) return true;
   if (v === 4) {
     const p = ip.split('.').map(Number);
     if (p[0] === 0 || p[0] === 127 || p[0] === 10) return true;
