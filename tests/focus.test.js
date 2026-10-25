@@ -121,3 +121,8 @@ test('the digest is one line, biggest group first', () => {
   assert.strictEqual(focus.digest([]), null, 'nothing held back means nothing to deliver');
   assert.strictEqual(focus.digest(null), null);
 });
+
+test('an event marked free on the calendar is not a meeting', () => {
+  const events = [{ ...ev(at(10, 0), 30, 'Lunch'), free: true }];
+  assert.strictEqual(focus.busyState({ cfg: {}, events, now: at(10, 15) }).busy, false);
+});

@@ -103,7 +103,6 @@ async function fetchIcsSafely(start) {
   throw new Error('blocked: too many redirects');
 }
 
-// Only run the fork protocol when launched as the forked entry point; when this file
 // How long a parsed VEVENT lasts, in ms. Used to give every emitted occurrence an
 // end time. Falls back to 30 minutes when DTEND (and any DURATION node-ical has
 // resolved into it) is missing or nonsensical, and clamps to a day so one broken
@@ -119,7 +118,14 @@ function durationOf(ev) {
   return Math.min(d, MAX_EVENT_MS);
 }
 
-// is require()'d (e.g. from a unit test) just expose the pure functions below.
+// node-ical keys EXDATE and RECURRENCE-ID entries by the occurrence's ISO time.
+function occurrenceGone(ev, t) {
+  const key = new Date(t).toISOString();
+  if (ev.exdate && ev.exdate[key]) return true;
+  const over = ev.recurrences && ev.recurrences[key];
+  return !!(over && String(over.status || '').toUpperCase() === 'CANCELLED');
+}
+
 // Upcoming events from a parsed feed, soonest first. Pure, so the rules about
 // which invites count are testable without a network.
 function eventsFrom(data, now) {
@@ -129,11 +135,12 @@ function eventsFrom(data, now) {
   for (const k in data) {
     const ev = data[k];
     if (!ev || ev.type !== 'VEVENT') continue;
-    // A cancelled meeting, or one marked "free", does not take your time. Kept,
-    // either would let anyone who can put an invite on the feed (Google adds them
-    // unasked) make Focus Guard hold your reminders for the length of it.
+    // A cancelled meeting is gone. One marked "free" still gets its reminder but
+    // is flagged, so Focus Guard (focus.meetingNow) does not hold your messages
+    // for it: anyone who can put an invite on the feed (Google adds them unasked)
+    // could otherwise silence the pet for the length of it.
     if (String(ev.status || '').toUpperCase() === 'CANCELLED') continue;
-    if (String(ev.transparency || '').toUpperCase() === 'TRANSPARENT') continue;
+    const free = String(ev.transparency || '').toUpperCase() === 'TRANSPARENT';
     const summary = cleanText(ev.summary, 80) || 'Event';
     const uid = String(ev.uid || k);
     // How long the event runs, carried onto every occurrence. Focus Guard needs an
@@ -146,17 +153,20 @@ function eventsFrom(data, now) {
       try { occ = ev.rrule.between(new Date(floor), new Date(horizon), true) || []; } catch (e) { occ = []; }
       for (const d of occ) {
         const t = d.getTime();
-        if (t >= floor && t <= horizon) out.push({ uid: uid + ':' + t, start: t, end: t + lenMs, summary });
+        if (t < floor || t > horizon || occurrenceGone(ev, t)) continue;
+        out.push({ uid: uid + ':' + t, start: t, end: t + lenMs, summary, free });
       }
     } else if (ev.start) {
       const t = new Date(ev.start).getTime();
-      if (Number.isFinite(t) && t >= floor && t <= horizon) out.push({ uid, start: t, end: t + lenMs, summary });
+      if (Number.isFinite(t) && t >= floor && t <= horizon) out.push({ uid, start: t, end: t + lenMs, summary, free });
     }
   }
   out.sort((a, b) => a.start - b.start);
   return out.slice(0, 100);
 }
 
+// Only run the fork protocol when launched as the forked entry point; when this file
+// is require()'d (e.g. from a unit test) just expose the pure functions.
 if (require.main === module || process.parentPort) {
 const { onJob, reply, exitSoon } = require('./worker-port');
 onJob(async (msg) => {
