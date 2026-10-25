@@ -4,6 +4,22 @@ Notable changes to **pixelpets**. All art and sound are original/procedural (no 
 
 ## [Unreleased]
 
+### Security
+- **Port 143 mail requires STARTTLS.** It used to upgrade only when the server offered to, so someone on the same network who hid the offer got your app password in plaintext. Now the login fails instead.
+- **VIP senders match exactly.** `boss@acme.com.evil.net` no longer passes as `boss@acme.com` and skips Focus Guard. An `@acme.com` entry covers that domain and its subdomains, and a full address covers that one person. Entries that relied on matching part of an address (`boss`, `boss@`) need the full address now.
+- **Mail subjects and meeting titles stay off disk.** They still show in the tray's recent notifications for the current session, but `notify-history.json` no longer stores them.
+- **Sender, subject and invite text loses spoofing characters**, such as bidi overrides and zero-width marks, before it is shown. Emoji sequences and scripts that need joiners are unaffected.
+- **Invites that don't take your time don't hold your messages.** Cancelled events, cancelled or excluded occurrences of a recurring meeting, and events marked free no longer make Focus Guard busy. Free events still get their reminder.
+- **The calendar fetch blocks every reserved address range**, matched as real address blocks rather than by spelling.
+- **More shortcut file types are refused.** Libraries, saved searches, themes, `.rdp` and ClickOnce files open things the allowlist never sees.
+
+### Notify bridge
+- **A flood from scripts is capped** at 8 messages per 10 seconds, followed by one quiet line saying the rest were skipped. A text character split between two writes now arrives whole, and a huge dump is read in slices.
+
+### iPad terminal
+- **Malformed requests, slow readers and crowds no longer crash it.** That covers a `null` body, an unparseable URL, typing into a shell that just exited, absurd terminal sizes, unlimited viewers on one session, and a viewer that stops reading. Tests drive it with 100 clients at once.
+- **Sessions work under Git Bash on Windows.** The server sent PowerShell's flags to whatever `$SHELL` was set to, so bash exited the moment a session started.
+
 ### Mail
 - **A throttled sign-in no longer blames your password.** When Microsoft 365 rate-limits logins, the Settings "Test" button said "Authentication failed - check your email and app-password", which sent people off to make a new app-password for nothing. It now says the server is limiting sign-ins and to try again in a minute.
 
