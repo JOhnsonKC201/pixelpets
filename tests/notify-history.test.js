@@ -67,3 +67,22 @@ test('relTime rounds into the largest sensible unit', () => {
   assert.strictEqual(relTime(now - 2 * 86_400_000, now), '2d ago');
   assert.strictEqual(relTime(now + 10_000, now), '0s ago');   // clock skew never goes negative
 });
+
+test('mail and calendar text is recapped in memory but never written to disk', () => {
+  // Sender, subject and meeting titles are private; the logger already keeps
+  // addresses off disk, and a 50-entry history file would undo that.
+  const file = tempFile();
+  const a = makeNotifyHistory({ filePath: () => file });
+  a.record('email', 'Dr. Lee: your reference letter');
+  a.record('calendar', 'Interview with Acme in 10 min');
+  a.record('reminder', 'Drink water');
+  a.flush();
+  assert.deepStrictEqual(a.recent(5).map((n) => n.source), ['reminder', 'calendar', 'email'], 'this session still sees all three');
+
+  const onDisk = fs.readFileSync(file, 'utf8');
+  assert.ok(!onDisk.includes('reference letter') && !onDisk.includes('Acme'), onDisk);
+
+  const b = makeNotifyHistory({ filePath: () => file });
+  b.load();
+  assert.deepStrictEqual(b.recent(5).map((n) => n.message), ['Drink water']);
+});
