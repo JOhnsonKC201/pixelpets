@@ -25,8 +25,35 @@ const PUBLIC = path.join(__dirname, 'public');
 // of context instead of dropping you into a blank buffer mid-command.
 const SCROLLBACK = 256 * 1024;
 const MAX_SESSIONS = 4;
+// A phone, a tablet and a couple of stale tabs; more watchers than this on one
+// shell is a leak or a flood, and each one holds a socket open.
+const MAX_CLIENTS = 8;
+// Bytes a stream may have queued and unsent. A reader that stops reading (a frozen
+// tab, a dead Wi-Fi link the OS has not noticed yet) is cut loose at this point
+// instead of growing the queue without bound; it reconnects and replays the gap.
+const MAX_PENDING = 1024 * 1024;
+const MAX_FAILURE_IPS = 1000;
 const MAX_BODY = 64 * 1024;
 const HEARTBEAT_MS = 15000;
+
+// Line mode feeds the shell commands on stdin, and how to ask for that depends on
+// which shell it is, not on the OS: Git Bash on Windows exports SHELL=bash, and
+// PowerShell's flags make bash print its usage and exit before the first prompt.
+function lineArgs(shell) {
+  // Split on both separators: path.basename on posix leaves a Windows path whole.
+  const name = String(shell).split(/[\\/]/).pop().toLowerCase().replace(/\.exe$/, '');
+  if (name === 'powershell' || name === 'pwsh') return ['-NoLogo', '-NoProfile', '-Command', '-'];
+  if (name === 'cmd') return ['/Q'];
+  return [];
+}
+
+// Terminal sizes come from the client; a pty asked for a billion columns throws.
+function clampSize(cols, rows) {
+  return {
+    cols: Math.max(20, Math.min(500, Math.round(Number(cols)) || 80)),
+    rows: Math.max(5, Math.min(200, Math.round(Number(rows)) || 24)),
+  };
+}
 
 // ---------------------------------------------------------------- options
 
@@ -111,6 +138,12 @@ function noteFailure(ip) {
   // A handful of fat-fingered URLs is normal; a hundred is someone walking the space.
   if (rec.count >= 10) { rec.until = Date.now() + 60000; rec.count = 0; }
   failures.set(ip, rec);
+  // Every new source address adds an entry; keep the table from growing forever by
+  // forgetting the ones that are not currently locked out.
+  if (failures.size > MAX_FAILURE_IPS) {
+    const now = Date.now();
+    for (const [key, val] of failures) if (val.until <= now && key !== ip) failures.delete(key);
+  }
 }
 
 // A browser on some other site can't read our responses, but it *can* make the
@@ -130,8 +163,9 @@ function hostOk(req) {
 
 const sessions = new Map();
 
-function newSession(cols, rows) {
+function newSession(wantCols, wantRows) {
   if (sessions.size >= MAX_SESSIONS) return null;
+  const { cols, rows } = clampSize(wantCols, wantRows);
   const id = crypto.randomBytes(9).toString('hex');
   const sess = {
     id, chunks: [], bytes: 0, base: 0, offset: 0,
@@ -141,15 +175,15 @@ function newSession(cols, rows) {
   if (pty) {
     sess.proc = pty.spawn(SHELL, [], {
       name: 'xterm-256color',
-      cols: cols || 80,
-      rows: rows || 24,
+      cols,
+      rows,
       cwd: process.env.HOME || process.cwd(),
       env: { ...process.env, TERM: 'xterm-256color' },
     });
     sess.proc.onData((d) => pushOut(sess, Buffer.from(d, 'utf8')));
     sess.proc.onExit(({ exitCode }) => endSession(sess, exitCode));
   } else {
-    sess.proc = spawn(SHELL, IS_WIN ? ['-NoLogo', '-NoProfile', '-Command', '-'] : [], {
+    sess.proc = spawn(SHELL, lineArgs(SHELL), {
       cwd: process.env.HOME || process.cwd(),
       env: { ...process.env, TERM: 'dumb' },
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -158,6 +192,9 @@ function newSession(cols, rows) {
     // stderr is folded into the same stream: a terminal shows one interleaved
     // transcript, and splitting them here would only reorder the output.
     sess.proc.stderr.on('data', (d) => pushOut(sess, d));
+    // Input that lands after the shell has gone fails with EPIPE on stdin. With no
+    // listener that error is thrown, and it takes the whole server down with it.
+    sess.proc.stdin.on('error', () => { /* the exit handler reports the end */ });
     sess.proc.on('exit', (code) => endSession(sess, code == null ? -1 : code));
     sess.proc.on('error', (err) => {
       pushOut(sess, Buffer.from(`\r\ncould not start ${SHELL}: ${err.message}\r\n`));
@@ -185,7 +222,14 @@ function pushOut(sess, buf) {
     sess.base += dropped.length;
   }
   const frame = `event: out\ndata: ${buf.toString('base64')}\n\n`;
-  for (const res of sess.clients) res.write(frame);
+  for (const res of sess.clients) {
+    if (res.writableLength > MAX_PENDING) {
+      sess.clients.delete(res);
+      try { res.end(); } catch { /* already torn down */ }
+      continue;
+    }
+    res.write(frame);
+  }
 }
 
 function endSession(sess, code) {
@@ -222,7 +266,7 @@ function replay(sess, res, from) {
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 
 function send(res, code, type, body, extra) {
-  res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', ...extra });
+  res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...extra });
   res.end(body);
 }
 
@@ -254,7 +298,10 @@ function vendorPath(key) {
 
 const server = http.createServer((req, res) => {
   const ip = req.socket.remoteAddress || '?';
-  const url = new URL(req.url, 'http://x');
+  // An absolute-form target with a broken authority ("GET http://[ HTTP/1.1") makes
+  // URL throw, and a throw here is an uncaught exception that ends the server.
+  let url;
+  try { url = new URL(req.url, 'http://x'); } catch { return send(res, 400, 'text/plain', 'bad request\n'); }
   const route = url.pathname;
 
   if (!hostOk(req)) return send(res, 421, 'text/plain', 'bad Host header\n');
@@ -298,7 +345,12 @@ const server = http.createServer((req, res) => {
     return readBody(req, (body) => {
       let want = {};
       try { want = JSON.parse(body.toString() || '{}'); } catch { /* defaults */ }
-      const sess = newSession(Number(want.cols), Number(want.rows));
+      // JSON.parse('null') succeeds, and null.cols would throw out of this callback.
+      if (!want || typeof want !== 'object') want = {};
+      let sess;
+      try { sess = newSession(want.cols, want.rows); } catch (err) {
+        return send(res, 500, 'application/json', JSON.stringify({ error: `could not start ${SHELL}: ${err.message}` }));
+      }
       if (!sess) return send(res, 429, 'application/json', JSON.stringify({ error: 'too many sessions' }));
       send(res, 200, 'application/json', JSON.stringify({ id: sess.id, mode: MODE, shell: SHELL, host: os.hostname() }));
     });
@@ -308,6 +360,7 @@ const server = http.createServer((req, res) => {
 
   if (route === '/api/stream') {
     if (!sess) return send(res, 404, 'text/plain', 'no such session\n');
+    if (sess.clients.size >= MAX_CLIENTS) return send(res, 429, 'text/plain', 'too many viewers on this session\n');
     res.socket.setNoDelay(true);
     res.socket.setKeepAlive(true);
     res.writeHead(200, {
@@ -348,8 +401,7 @@ const server = http.createServer((req, res) => {
 
   if (route === '/api/resize' && req.method === 'POST') {
     if (!sess) return send(res, 404, 'text/plain', 'no such session\n');
-    const cols = Math.max(20, Math.min(500, Number(url.searchParams.get('cols')) || 80));
-    const rows = Math.max(5, Math.min(200, Number(url.searchParams.get('rows')) || 24));
+    const { cols, rows } = clampSize(url.searchParams.get('cols'), url.searchParams.get('rows'));
     if (pty) { try { sess.proc.resize(cols, rows); } catch { /* raced with exit */ } }
     return send(res, 204, 'text/plain', '');
   }
@@ -441,4 +493,4 @@ if (require.main === module) {
   process.on('SIGTERM', shutdown);
 }
 
-module.exports = { parseArgs, hostOk, pushOut, replay, SCROLLBACK };
+module.exports = { parseArgs, hostOk, pushOut, replay, clampSize, lineArgs, SCROLLBACK, MAX_CLIENTS, MAX_PENDING };
