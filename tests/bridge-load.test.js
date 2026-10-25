@@ -41,13 +41,20 @@ test('one huge append is read in bounded slices, not one giant buffer', async ()
     onAgent: () => {}, onMessage: (m) => got.push(m),
   });
   assert.ok(Number.isInteger(MAX_READ) && MAX_READ > 0, 'the bridge exports its slice size');
+  // Watch every read the bridge makes; one whole-backlog buffer would show here.
+  const realRead = fs.readSync;
+  const sizes = [];
+  fs.readSync = (fd, buf, ...rest) => { sizes.push(buf.length); return realRead(fd, buf, ...rest); };
   try {
     // Junk well past one slice, then a real message after it.
     const junk = 'x'.repeat(MAX_READ * 3) + '\n';
     fs.appendFileSync(notifyFile, junk + '{"message":"after the flood"}\n');
     await until(() => got.includes('after the flood'));
     assert.deepStrictEqual(got, ['after the flood']);
+    assert.ok(sizes.length >= 4, `read in ${sizes.length} slices`);
+    assert.ok(sizes.every((n) => n <= MAX_READ), `largest read ${Math.max(...sizes)}`);
   } finally {
+    fs.readSync = realRead;
     bridge.stop();
   }
 });
@@ -90,7 +97,7 @@ test('a flood from tools becomes a few toasts and one summary, not a hundred', a
     onAgent: () => {}, onMessage: (m, opts) => got.push({ m, opts }),
   });
   try {
-    const lines = Array.from({ length: 100 }, (_, i) => JSON.stringify({ id: `f${i}`, message: `build ${i} done` }));
+    const lines = Array.from({ length: 100 }, (_, i) => JSON.stringify({ id: `f${i}`, message: `build ${i} done`, title: 'Your bank', ttl: 30000 }));
     fs.appendFileSync(notifyFile, lines.join('\n') + '\n');
     await until(() => got.length >= 6);
     await new Promise((r) => setTimeout(r, 200));   // nothing else trickles in
@@ -99,6 +106,10 @@ test('a flood from tools becomes a few toasts and one summary, not a hundred', a
     const summary = got[5];
     assert.match(summary.m, /more/i);
     assert.equal(summary.opts.sound, false, 'the summary is quiet');
+    // The notice is the pet speaking, so it does not borrow the flooder's title or
+    // keep its 30-second toast on screen.
+    assert.equal(summary.opts.title, 'pixelpets');
+    assert.ok(summary.opts.ttl <= 8000, `ttl ${summary.opts.ttl}`);
   } finally {
     bridge.stop();
   }
@@ -112,4 +123,16 @@ test('the burst limiter refills once the window passes', () => {
   assert.equal(lim.take(), 'drop');
   t = 1001;
   assert.equal(lim.take(), 'ok');
+});
+
+test('a clock that jumps backwards does not jam the limiter shut', () => {
+  // NTP corrections and resume-from-sleep can step Date.now() back. A window that
+  // only resets on "now - start > window" would then never reset again.
+  const { makeBurstLimiter } = require('../src/main/bridge');
+  let t = 1000000;
+  const lim = makeBurstLimiter({ max: 1, windowMs: 1000, now: () => t });
+  assert.equal(lim.take(), 'ok');
+  assert.equal(lim.take(), 'first-drop');
+  t = 5000;   // an hour earlier
+  assert.equal(lim.take(), 'ok', 'a fresh window starts');
 });

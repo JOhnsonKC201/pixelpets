@@ -106,7 +106,9 @@ function imapHostFor(email, host) {
 function isVip(address, vip) {
   const a = String(address == null ? '' : address).trim().toLowerCase();
   if (!a || !Array.isArray(vip)) return false;
-  const domain = a.slice(a.lastIndexOf('@') + 1);
+  const at = a.lastIndexOf('@');
+  if (at < 1) return false;   // not an address: no local part, or no domain at all
+  const domain = a.slice(at + 1);
   return vip.some((v) => {
     const n = String(v || '').trim().toLowerCase();
     if (!n) return false;

@@ -60,3 +60,8 @@ test('joiners that real text needs survive; a joiner hidden in plain ASCII does 
   assert.equal(cleanText(`bank${ZWNJ}.com`, 120), 'bank.com');
   assert.equal(cleanText('ab' + cp(0x1F43E), 3), 'ab' + cp(0x1F43E), 'the limit counts characters, not halves');
 });
+
+test('a From value that is not an address never matches a domain entry', () => {
+  assert.strictEqual(mail.isVip('acme.com', ['@acme.com']), false);
+  assert.strictEqual(mail.isVip('@acme.com', ['@acme.com']), false);
+});

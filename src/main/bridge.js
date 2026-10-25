@@ -49,7 +49,9 @@ function makeBurstLimiter({ max, windowMs, now = Date.now }) {
   return {
     take() {
       const t = now();
-      if (t - start > windowMs) { start = t; used = 0; dropped = false; }
+      // t < start: the clock stepped back (NTP, resume); start over rather than
+      // wait out a window that would now never end.
+      if (t < start || t - start >= windowMs) { start = t; used = 0; dropped = false; }
       if (used < max) { used += 1; return 'ok'; }
       if (!dropped) { dropped = true; return 'first-drop'; }
       return 'drop';
@@ -124,7 +126,9 @@ function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, noti
     const verdict = limiter ? limiter.take() : 'ok';
     if (verdict === 'ok') onMessage(rec.message, rec.opts);
     else if (verdict === 'first-drop') {
-      onMessage(FLOOD_MESSAGE, { ...rec.opts, dedupeKey: 'bridge:flood', level: 'info', sound: false });
+      // Fixed options: this is the pet talking, not the flooder, so it borrows
+      // neither the dropped record's title nor its up-to-30-second toast.
+      onMessage(FLOOD_MESSAGE, { source: 'bridge', dedupeKey: 'bridge:flood', title: 'pixelpets', level: 'info', ttl: 6000, sound: false });
     }
   };
   let lastAgent = '';
