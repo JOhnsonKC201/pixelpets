@@ -1,0 +1,122 @@
+/* Design tokens for the app's own windows (Settings today).
+ *
+ * One place decides every colour, so a light theme can exist and a new control
+ * cannot invent a seventh shade of dark grey. tests/settings-design.test.js fails
+ * if settings.html writes a colour itself, or if a colour token here has no
+ * light-theme value.
+ *
+ * The masthead and tab rail are the brand band and stay dark in both themes, the
+ * way the pet sits on a dark taskbar; only the page under them changes. Their
+ * tokens repeat the dark values in the light block on purpose.
+ *
+ * Shapes follow the website: hard offset shadows rather than blurs, and a small
+ * radius scale so corners read as pixel steps instead of soft pills. */
+
+@font-face {
+  font-family: "Press Start 2P";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/press-start-2p-latin.woff2") format("woff2");   /* OFL, see fonts/OFL-PressStart2P.txt */
+}
+
+:root {
+  color-scheme: dark;
+
+  /* page */
+  --c-bg: #191b22;
+  --c-panel: #23262f;
+  --c-panel-2: #2a2e39;
+  --c-panel-hover: #313542;
+  --c-line: #363b47;
+  --c-edge: #14161c;
+  --c-track: #14161c;
+  --c-stroke: #0f1116;
+  --c-ink: #eceef3;
+  --c-muted: #9aa0ad;
+  --c-faint: #6b7280;
+  --c-accent: #e8943c;
+  --c-accent-hover: #f2a24a;
+  --c-accent-ink: #1a1c22;
+  --c-accent-wash: rgba(232, 148, 60, .25);
+  --c-accent-glow: rgba(232, 148, 60, .12);
+  --c-stage-glow: rgba(232, 148, 60, .14);
+  --c-good: #8bbf5a;
+  --c-danger: #ff6b78;
+  --c-shadow: rgba(0, 0, 0, .45);
+  --c-sheen: rgba(255, 255, 255, .035);
+  --c-ring: rgba(255, 255, 255, .08);
+  --c-stage-top: #1c1f27;
+  --c-stage-bot: #171920;
+
+  /* brand band: masthead + tab rail */
+  --c-band-top: #1f2129;
+  --c-band-bot: #15171d;
+  --c-band-light: rgba(255, 186, 110, .42);
+  --c-band-dither: rgba(255, 255, 255, .035);
+  --c-band-ink: #eceef3;
+  --c-band-muted: #9aa0ad;
+  --c-band-hover: rgba(255, 255, 255, .04);
+  --c-band-focus: rgba(236, 238, 243, .6);
+  --c-rail: #111318;
+  --c-rail-edge: #08090c;
+  --c-mascot-glow: rgba(255, 196, 128, .3);
+  --c-mascot-shadow: rgba(0, 0, 0, .4);
+
+  /* shape */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --sh-1: 2px 2px 0 0 var(--c-shadow);
+  --sh-2: 3px 3px 0 0 var(--c-shadow);
+
+  /* type: the pixel face is for short labels only; a paragraph in it is unreadable */
+  --font-body: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-pixel: "Press Start 2P", ui-monospace, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    /* page: warm paper rather than white, so it is still the same brand */
+    --c-bg: #f4efe6;
+    --c-panel: #fffaf2;
+    --c-panel-2: #efe7da;
+    --c-panel-hover: #e6dccb;
+    --c-line: #d6cbb8;
+    --c-edge: #c9bca6;
+    --c-track: #e2d8c6;
+    --c-stroke: #3b3128;
+    --c-ink: #23201b;
+    --c-muted: #6b6357;
+    --c-faint: #7d7365;
+    --c-accent: #c8701f;          /* darker, so orange text keeps its contrast on paper */
+    --c-accent-hover: #b4621a;
+    --c-accent-ink: #1a1c22;
+    --c-accent-wash: rgba(200, 112, 31, .18);
+    --c-accent-glow: rgba(200, 112, 31, .10);
+    --c-stage-glow: rgba(200, 112, 31, .12);
+    --c-good: #4f8a2a;
+    --c-danger: #c43846;
+    --c-shadow: rgba(60, 40, 20, .22);
+    --c-sheen: rgba(255, 255, 255, .6);
+    --c-ring: rgba(0, 0, 0, .08);
+    --c-stage-top: #fbf4e8;
+    --c-stage-bot: #efe5d4;
+
+    /* brand band: unchanged on purpose */
+    --c-band-top: #1f2129;
+    --c-band-bot: #15171d;
+    --c-band-light: rgba(255, 186, 110, .42);
+    --c-band-dither: rgba(255, 255, 255, .035);
+    --c-band-ink: #eceef3;
+    --c-band-muted: #9aa0ad;
+    --c-band-hover: rgba(255, 255, 255, .04);
+    --c-band-focus: rgba(236, 238, 243, .6);
+    --c-rail: #111318;
+    --c-rail-edge: #08090c;
+    --c-mascot-glow: rgba(255, 196, 128, .3);
+    --c-mascot-shadow: rgba(0, 0, 0, .4);
+  }
+}
