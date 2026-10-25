@@ -12,8 +12,6 @@ const SERVER = path.join(__dirname, '..', 'tools', 'ipad-terminal', 'server.js')
 const TOKEN = 'abuse-suite-token';
 const auth = { 'x-term-token': TOKEN };
 
-// `realShell` keeps the platform's own shell, for a test that needs a session to
-// stay alive; otherwise the "shell" is node, which exits as soon as it starts.
 // Ask the OS for a port nobody holds, so one test never talks to the previous
 // test's server while that one is still shutting down.
 function freePort() {
@@ -24,10 +22,11 @@ function freePort() {
   });
 }
 
-async function withServer(fn, { realShell = false } = {}) {
+// The "shell" is node itself: given no arguments it reads stdin as a script and
+// stays alive until stdin closes, the same on every platform. `shell` overrides it.
+async function withServer(fn, { shell = process.execPath } = {}) {
   const port = await freePort();
-  const args = [SERVER, `--port=${port}`, `--token=${TOKEN}`, '--idle=5'];
-  if (!realShell) args.push(`--shell=${process.execPath}`);
+  const args = [SERVER, `--port=${port}`, `--token=${TOKEN}`, '--idle=5', `--shell=${shell}`];
   const proc = spawn(process.execPath, args, { stdio: ['ignore', 'ignore', 'pipe'] });
   let stderr = '';
   proc.stderr.on('data', (d) => { stderr += d; });
@@ -65,12 +64,15 @@ test('sizes from the client are clamped before they reach a pty', () => {
 });
 
 test('a reader that stops reading is dropped, not buffered forever', () => {
-  let ended = 0;
-  const stuck = { writableLength: srv.MAX_PENDING + 1, write() {}, end() { ended += 1; } };
-  const fine = { writableLength: 0, frames: 0, write() { this.frames += 1; }, end() {} };
+  // destroy, not end: end() on a socket that is not draining never closes it, so
+  // the queued megabyte stays and the next heartbeat writes after end, which
+  // throws ERR_STREAM_WRITE_AFTER_END with nobody listening.
+  let destroyed = 0;
+  const stuck = { writableLength: srv.MAX_PENDING + 1, write() {}, destroy() { destroyed += 1; } };
+  const fine = { writableLength: 0, frames: 0, write() { this.frames += 1; }, destroy() {} };
   const sess = { chunks: [], bytes: 0, base: 0, offset: 0, clients: new Set([stuck, fine]) };
   srv.pushOut(sess, Buffer.from('hello'));
-  assert.equal(ended, 1, 'the stalled stream was closed; it can reconnect and replay');
+  assert.equal(destroyed, 1, 'the stalled stream was torn down; it can reconnect and replay');
   assert.ok(!sess.clients.has(stuck));
   assert.equal(fine.frames, 1, 'a healthy reader still got the output');
 });
@@ -147,4 +149,37 @@ test('typing into a shell that just died does not take the server down', async (
     await new Promise((r) => setTimeout(r, 300));
     assert.ok(await alive());
   }, { shell: path.join(__dirname, 'no-such-shell-here') });
+});
+
+test('a stalled viewer on a real socket is cut loose without killing the server', async () => {
+  // In process, with a real http response: a client that opens the stream and then
+  // never reads. Output piles up until the viewer is dropped, and the heartbeat
+  // keeps firing at it afterwards. Any write after end would surface here.
+  const crashes = [];
+  const onCrash = (e) => crashes.push(e);
+  process.on('uncaughtException', onCrash);
+  // exited is set so the server's reaper (a 120 s timer) is never armed here.
+  const sess = { chunks: [], bytes: 0, base: 0, offset: 0, clients: new Set(), reaper: null, exited: 0 };
+  const server = require('node:http').createServer((req, res) => srv.attachStream(sess, req, res, 0, 20));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const sock = require('node:net').connect(server.address().port, '127.0.0.1');
+  try {
+    await new Promise((r) => sock.once('connect', r));
+    sock.write('GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n');
+    sock.pause();   // never read: the server's queue for us only grows
+    for (let i = 0; i < 50 && !sess.clients.size; i += 1) await new Promise((r) => setTimeout(r, 10));
+    assert.equal(sess.clients.size, 1, 'the viewer attached');
+    const chunk = Buffer.alloc(256 * 1024, 'x');
+    for (let i = 0; i < 400 && sess.clients.size; i += 1) {
+      srv.pushOut(sess, chunk);
+      await new Promise((r) => setImmediate(r));
+    }
+    assert.equal(sess.clients.size, 0, 'the stalled viewer was dropped');
+    await new Promise((r) => setTimeout(r, 200));   // ten heartbeats past the drop
+    assert.deepStrictEqual(crashes.map((e) => e.code || e.message), []);
+  } finally {
+    process.off('uncaughtException', onCrash);
+    sock.destroy();
+    await new Promise((r) => server.close(r));
+  }
 });

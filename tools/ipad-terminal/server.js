@@ -225,7 +225,9 @@ function pushOut(sess, buf) {
   for (const res of sess.clients) {
     if (res.writableLength > MAX_PENDING) {
       sess.clients.delete(res);
-      try { res.end(); } catch { /* already torn down */ }
+      // destroy, not end: end() waits for a flush that a stalled reader never
+      // allows, so the socket and its queued megabyte would stay.
+      try { res.destroy(); } catch { /* already torn down */ }
       continue;
     }
     res.write(frame);
@@ -259,6 +261,43 @@ function replay(sess, res, from) {
     skip = 0;
   }
   if (out.length) res.write(`event: out\ndata: ${Buffer.concat(out).toString('base64')}\n\n`);
+}
+
+// One SSE viewer on a session: headers, the hello frame, the replay of what it
+// missed, a heartbeat, and the cleanup when it goes.
+function attachStream(sess, req, res, from, beatMs = HEARTBEAT_MS) {
+  res.socket.setNoDelay(true);
+  res.socket.setKeepAlive(true);
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-store',
+    connection: 'keep-alive',
+    'x-accel-buffering': 'no',
+  });
+  if (sess.reaper) { clearTimeout(sess.reaper); sess.reaper = null; }
+  sess.clients.add(res);
+  res.write(`event: hello\ndata: ${JSON.stringify({ mode: MODE, offset: sess.offset, base: sess.base })}\n\n`);
+  replay(sess, res, from);
+  // A response that was ended or torn down (a dropped slow reader, a session that
+  // exited) must not be written to: write-after-end is an 'error' nobody listens
+  // for, and that is an uncaught exception that ends the server.
+  const beat = setInterval(() => { if (!res.writableEnded && !res.destroyed) res.write(': beat\n\n'); }, beatMs);
+  let finished = false;
+  const done = () => {
+    if (finished) return;
+    finished = true;
+    clearInterval(beat);
+    sess.clients.delete(res);
+    // Don't reap while another tab is still watching, and give a suspended
+    // Safari a window to come back before the shell dies with it.
+    if (!sess.clients.size && sess.exited === null && !sess.reaper) {
+      sess.reaper = setTimeout(() => killSession(sess), opt.idle * 1000);
+    }
+  };
+  req.on('close', done);
+  req.on('error', done);
+  res.on('close', done);
+  res.on('error', done);
 }
 
 // ---------------------------------------------------------------- http
@@ -361,30 +400,7 @@ const server = http.createServer((req, res) => {
   if (route === '/api/stream') {
     if (!sess) return send(res, 404, 'text/plain', 'no such session\n');
     if (sess.clients.size >= MAX_CLIENTS) return send(res, 429, 'text/plain', 'too many viewers on this session\n');
-    res.socket.setNoDelay(true);
-    res.socket.setKeepAlive(true);
-    res.writeHead(200, {
-      'content-type': 'text/event-stream',
-      'cache-control': 'no-store',
-      connection: 'keep-alive',
-      'x-accel-buffering': 'no',
-    });
-    if (sess.reaper) { clearTimeout(sess.reaper); sess.reaper = null; }
-    sess.clients.add(res);
-    res.write(`event: hello\ndata: ${JSON.stringify({ mode: MODE, offset: sess.offset, base: sess.base })}\n\n`);
-    replay(sess, res, Number(url.searchParams.get('from') || 0));
-    const beat = setInterval(() => res.write(': beat\n\n'), HEARTBEAT_MS);
-    const done = () => {
-      clearInterval(beat);
-      sess.clients.delete(res);
-      // Don't reap while another tab is still watching, and give a suspended
-      // Safari a window to come back before the shell dies with it.
-      if (!sess.clients.size && sess.exited === null && !sess.reaper) {
-        sess.reaper = setTimeout(() => killSession(sess), opt.idle * 1000);
-      }
-    };
-    req.on('close', done);
-    req.on('error', done);
+    attachStream(sess, req, res, Number(url.searchParams.get('from') || 0));
     return undefined;
   }
 
@@ -493,4 +509,4 @@ if (require.main === module) {
   process.on('SIGTERM', shutdown);
 }
 
-module.exports = { parseArgs, hostOk, pushOut, replay, clampSize, lineArgs, SCROLLBACK, MAX_CLIENTS, MAX_PENDING };
+module.exports = { parseArgs, hostOk, pushOut, replay, clampSize, lineArgs, attachStream, SCROLLBACK, MAX_CLIENTS, MAX_PENDING };
