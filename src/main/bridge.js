@@ -8,6 +8,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { StringDecoder } = require('string_decoder');
 
 // The two bridge filenames keep the old pixelcat name on purpose. They are a
 // published contract, not branding: users have already pasted these paths into
@@ -29,6 +30,9 @@ const LEVELS = ['info', 'success', 'warn', 'alert'];
 const MAX_PARTIAL_LINE = 65536;   // a writer that never sends a newline cannot grow memory without bound
 const SEEN_MAX = 500, SEEN_KEEP = 250;
 const POLL_MS = 500;
+// One read never allocates more than this. A writer that dumps a gigabyte is
+// drained a slice per tick instead of in one buffer that size.
+const MAX_READ = 256 * 1024;
 
 /**
  * Turn one parsed JSON line into notify() arguments, or null to drop it.
@@ -57,11 +61,14 @@ function sanitizeRecord(o) {
  */
 function makeLineReader() {
   let tail = '';
+  // Reads land on byte offsets, not character boundaries; the decoder holds a
+  // torn multi-byte character until the rest of it arrives.
+  let decoder = new StringDecoder('utf8');
   const seen = new Set();
   return {
-    reset() { tail = ''; },
+    reset() { tail = ''; decoder = new StringDecoder('utf8'); },
     feed(chunk) {
-      tail += chunk;
+      tail += typeof chunk === 'string' ? chunk : decoder.write(chunk);
       const lines = tail.split('\n');
       tail = lines.pop();
       if (tail.length > MAX_PARTIAL_LINE) tail = '';
@@ -102,22 +109,24 @@ function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, noti
   const reader = makeLineReader();
   let offset = 0;
   try { offset = fs.statSync(notifyFile).size; } catch (e) { offset = 0; }
+  let more = null;   // a pending follow-up slice, so a flood never blocks the loop
   const pushNotify = () => {
     if (!isAlive()) return;
     let size;
     try { size = fs.statSync(notifyFile).size; } catch (e) { return; }
     if (size < offset) { offset = 0; reader.reset(); }   // truncated/rotated
     if (size === offset) return;
-    let chunk;
+    let buf;
     try {
       const fd = fs.openSync(notifyFile, 'r');
-      const buf = Buffer.alloc(size - offset);
-      fs.readSync(fd, buf, 0, buf.length, offset);
-      fs.closeSync(fd);
-      chunk = buf.toString('utf8');
+      try {
+        buf = Buffer.alloc(Math.min(MAX_READ, size - offset));
+        buf = buf.subarray(0, fs.readSync(fd, buf, 0, buf.length, offset));
+      } finally { fs.closeSync(fd); }
     } catch (e) { return; }
-    offset = size;
-    for (const rec of reader.feed(chunk)) onMessage(rec.message, rec.opts);
+    offset += buf.length;
+    for (const rec of reader.feed(buf)) onMessage(rec.message, rec.opts);
+    if (offset < size && !more) more = setImmediate(() => { more = null; pushNotify(); });
   };
 
   try { lastAgent = fs.readFileSync(agentFile, 'utf8').trim(); } catch (e) { /* none yet */ }
@@ -136,9 +145,10 @@ function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, noti
   return {
     stop() {
       if (timer) { clearInterval(timer); timer = null; }
+      if (more) { clearImmediate(more); more = null; }
       if (watcher) { try { watcher.close(); } catch (e) { /* ignore */ } watcher = null; }
     },
   };
 }
 
-module.exports = { AGENT_FILE, NOTIFY_FILE, sanitizeRecord, makeLineReader, watchBridge };
+module.exports = { AGENT_FILE, NOTIFY_FILE, MAX_READ, sanitizeRecord, makeLineReader, watchBridge };
