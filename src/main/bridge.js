@@ -33,6 +33,29 @@ const POLL_MS = 500;
 // One read never allocates more than this. A writer that dumps a gigabyte is
 // drained a slice per tick instead of in one buffer that size.
 const MAX_READ = 256 * 1024;
+// Every record carries its own id, so dedupe never merges them: a script that
+// posts a hundred lines would be a hundred toasts and a hundred meows, and would
+// push everything else out of the tray recap. Past this burst the rest is dropped
+// and one quiet line says so.
+const DEFAULT_BURST = { max: 8, windowMs: 10000 };
+const FLOOD_MESSAGE = 'More messages from your tools than I can show. Skipping the rest for a moment.';
+
+/**
+ * Fixed-window counter. take() answers 'ok', then 'first-drop' once per window
+ * (the moment to say something), then 'drop'. Pure apart from the injected clock.
+ */
+function makeBurstLimiter({ max, windowMs, now = Date.now }) {
+  let start = -Infinity, used = 0, dropped = false;
+  return {
+    take() {
+      const t = now();
+      if (t - start > windowMs) { start = t; used = 0; dropped = false; }
+      if (used < max) { used += 1; return 'ok'; }
+      if (!dropped) { dropped = true; return 'first-drop'; }
+      return 'drop';
+    },
+  };
+}
 
 /**
  * Turn one parsed JSON line into notify() arguments, or null to drop it.
@@ -95,7 +118,15 @@ function makeLineReader() {
  * @param {(message: string, opts: object) => void} deps.onMessage
  * @returns {{ stop(): void }}
  */
-function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, notifyFile = NOTIFY_FILE }) {
+function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, notifyFile = NOTIFY_FILE, burst = DEFAULT_BURST }) {
+  const limiter = burst ? makeBurstLimiter(burst) : null;
+  const deliver = (rec) => {
+    const verdict = limiter ? limiter.take() : 'ok';
+    if (verdict === 'ok') onMessage(rec.message, rec.opts);
+    else if (verdict === 'first-drop') {
+      onMessage(FLOOD_MESSAGE, { ...rec.opts, dedupeKey: 'bridge:flood', level: 'info', sound: false });
+    }
+  };
   let lastAgent = '';
   const pushAgent = () => {
     if (!isAlive()) return;
@@ -125,7 +156,7 @@ function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, noti
       } finally { fs.closeSync(fd); }
     } catch (e) { return; }
     offset += buf.length;
-    for (const rec of reader.feed(buf)) onMessage(rec.message, rec.opts);
+    for (const rec of reader.feed(buf)) deliver(rec);
     if (offset < size && !more) more = setImmediate(() => { more = null; pushNotify(); });
   };
 
@@ -151,4 +182,4 @@ function watchBridge({ isAlive, onAgent, onMessage, agentFile = AGENT_FILE, noti
   };
 }
 
-module.exports = { AGENT_FILE, NOTIFY_FILE, MAX_READ, sanitizeRecord, makeLineReader, watchBridge };
+module.exports = { AGENT_FILE, NOTIFY_FILE, MAX_READ, sanitizeRecord, makeLineReader, makeBurstLimiter, watchBridge };

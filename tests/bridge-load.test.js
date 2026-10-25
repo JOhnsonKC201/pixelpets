@@ -55,8 +55,9 @@ test('one huge append is read in bounded slices, not one giant buffer', async ()
 test('100 writers at once: every message arrives exactly once', async () => {
   const { agentFile, notifyFile } = tempBridge();
   const got = [];
+  // The burst limit is off here: this measures the reader, not the policy.
   const bridge = watchBridge({
-    isAlive: () => true, agentFile, notifyFile,
+    isAlive: () => true, agentFile, notifyFile, burst: null,
     onAgent: () => {}, onMessage: (m) => got.push(m),
   });
   const WRITERS = 100, EACH = 5;
@@ -79,4 +80,36 @@ test('100 writers at once: every message arrives exactly once', async () => {
   } finally {
     bridge.stop();
   }
+});
+
+test('a flood from tools becomes a few toasts and one summary, not a hundred', async () => {
+  const { agentFile, notifyFile } = tempBridge();
+  const got = [];
+  const bridge = watchBridge({
+    isAlive: () => true, agentFile, notifyFile, burst: { max: 5, windowMs: 60000 },
+    onAgent: () => {}, onMessage: (m, opts) => got.push({ m, opts }),
+  });
+  try {
+    const lines = Array.from({ length: 100 }, (_, i) => JSON.stringify({ id: `f${i}`, message: `build ${i} done` }));
+    fs.appendFileSync(notifyFile, lines.join('\n') + '\n');
+    await until(() => got.length >= 6);
+    await new Promise((r) => setTimeout(r, 200));   // nothing else trickles in
+    assert.equal(got.length, 6, got.map((g) => g.m).join(' | '));
+    assert.deepStrictEqual(got.slice(0, 5).map((g) => g.m), ['build 0 done', 'build 1 done', 'build 2 done', 'build 3 done', 'build 4 done']);
+    const summary = got[5];
+    assert.match(summary.m, /more/i);
+    assert.equal(summary.opts.sound, false, 'the summary is quiet');
+  } finally {
+    bridge.stop();
+  }
+});
+
+test('the burst limiter refills once the window passes', () => {
+  const { makeBurstLimiter } = require('../src/main/bridge');
+  let t = 0;
+  const lim = makeBurstLimiter({ max: 2, windowMs: 1000, now: () => t });
+  assert.deepStrictEqual([lim.take(), lim.take(), lim.take()], ['ok', 'ok', 'first-drop']);
+  assert.equal(lim.take(), 'drop');
+  t = 1001;
+  assert.equal(lim.take(), 'ok');
 });
