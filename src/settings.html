@@ -2,31 +2,29 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none';" />
+  <link rel="stylesheet" href="ui/tokens.css" />
   <style>
-    :root {
-      --bg:#191b22; --panel:#23262f; --panel2:#2a2e39; --line:#363b47;
-      --fg:#eceef3; --muted:#9aa0ad; --faint:#6b7280;
-      --accent:#e8943c; --accent-deep:#b5641d; --good:#8bbf5a;
-      --shadow:3px 3px 0 0 rgba(0,0,0,.45);
-    }
+    /* Every colour, radius and shadow is a token from ui/tokens.css; this block
+       only arranges them. That is what lets the window follow the system's light
+       theme, and tests/settings-design.test.js keeps a stray hex value out. */
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; }
     body {
       background:
-        radial-gradient(420px 240px at 100% -10%, rgba(232,148,60,.12), transparent 60%),
-        var(--bg);
-      color: var(--fg);
-      font: 13px/1.45 "Segoe UI", system-ui, sans-serif;
+        radial-gradient(420px 240px at 100% -10%, var(--c-accent-glow), transparent 60%),
+        var(--c-bg);
+      color: var(--c-ink);
+      font: 13px/1.45 var(--font-body);
       padding: 0 0 18px; user-select: none; overflow-y: auto;
     }
     body::-webkit-scrollbar { width: 10px; }
-    body::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; border: 2px solid var(--bg); }
+    body::-webkit-scrollbar-thumb { background: var(--c-line); border-radius: var(--r-md); border: 2px solid var(--c-bg); }
 
     /* Keyboard focus has to be visible on every control. The toggles below are
        appearance:none, so without this a keyboard user tabbing through the window
        has no idea which switch they are about to flip. */
-    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    :focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
 
     /* header + tabs travel together, so the tab rail needs no magic top offset */
     .top { position: sticky; top: 0; z-index: 5; }
@@ -40,26 +38,26 @@
       position: relative; display: flex; align-items: center;
       height: 60px; padding: 0 16px;
       background:
-        radial-gradient(120px 78px at 89% 62%, rgba(255,186,110,.42), transparent 72%),
-        linear-gradient(180deg, #1f2129, #15171d);
+        radial-gradient(120px 78px at 89% 62%, var(--c-band-light), transparent 72%),
+        linear-gradient(180deg, var(--c-band-top), var(--c-band-bot));
     }
     /* a dither that thickens toward the mascot, so the light behind it has grain */
     .hdr::before {
       content: ""; position: absolute; inset: 0; pointer-events: none;
-      background: conic-gradient(rgba(255,255,255,.035) 25%, transparent 0 50%, rgba(255,255,255,.035) 0 75%, transparent 0) 0 0 / 8px 8px;
-      -webkit-mask-image: linear-gradient(90deg, transparent 42%, #000);
-              mask-image: linear-gradient(90deg, transparent 42%, #000);
+      background: conic-gradient(var(--c-band-dither) 25%, transparent 0 50%, var(--c-band-dither) 0 75%, transparent 0) 0 0 / 8px 8px;
+      -webkit-mask-image: linear-gradient(90deg, transparent 42%, black);
+              mask-image: linear-gradient(90deg, transparent 42%, black);
     }
     .word { position: relative; margin: 0; line-height: 0; }
     /* 4px a cell: a whole number of device pixels at 100, 125, 150 and 200% scaling,
        so no stroke of a letter comes out a pixel fatter than its neighbour. */
-    .word svg { display: block; width: 144px; height: 36px; shape-rendering: crispEdges; filter: drop-shadow(2px 2px 0 rgba(0,0,0,.5)); }
-    .word .px { fill: var(--accent); }
-    .word .pt { fill: var(--fg); }
+    .word svg { display: block; width: 144px; height: 36px; shape-rendering: crispEdges; filter: drop-shadow(2px 2px 0 var(--c-mascot-shadow)); }
+    .word .px { fill: var(--c-accent); }
+    .word .pt { fill: var(--c-band-ink); }
     .mascot {
       position: absolute; right: 14px; bottom: -7px; z-index: 2;   /* paws hang over the rail */
       width: 62px; height: 62px; pointer-events: none;
-      filter: drop-shadow(0 3px 0 rgba(0,0,0,.4)) drop-shadow(0 0 5px rgba(255,196,128,.3));
+      filter: drop-shadow(0 3px 0 var(--c-mascot-shadow)) drop-shadow(0 0 5px var(--c-mascot-glow));
       animation: sit 3.2s steps(1, end) infinite;
     }
     /* two frames, like a sprite: held, then one step up, never a tween */
@@ -73,27 +71,27 @@
     .tabs {
       display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px;
       padding: 6px 6px 0;
-      background: #111318;
-      box-shadow: inset 0 -2px 0 #08090c;
+      background: var(--c-rail);
+      box-shadow: inset 0 -2px 0 var(--c-rail-edge);
     }
     .tab {
       display: flex; flex-direction: column; align-items: center; gap: 5px;
-      background: transparent; color: var(--muted);
+      background: transparent; color: var(--c-band-muted);
       border: 0; border-top: 3px solid transparent; border-radius: 0; box-shadow: none;
       padding: 6px 2px 8px; font: inherit; font-size: 11px; font-weight: 600;
       cursor: pointer; transition: color .12s, background .12s;
     }
     .tab .ic { display: block; width: 18px; height: 18px; fill: currentColor; shape-rendering: crispEdges; transition: transform .1s steps(2, end); }
-    .tab:hover { color: var(--fg); background: rgba(255,255,255,.04); }
+    .tab:hover { color: var(--c-band-ink); background: var(--c-band-hover); }
     .tab:hover .ic { transform: translateY(-2px); }
     .tab:active { transform: none; box-shadow: none; }          /* not a chunky push-button */
     /* inside the tab and not accent-coloured, so it cannot be mistaken for "selected" */
-    .tab:focus-visible { outline: 2px solid rgba(236,238,243,.6); outline-offset: -5px; }
+    .tab:focus-visible { outline: 2px solid var(--c-band-focus); outline-offset: -5px; }
     .tab[aria-selected="true"] {
-      color: var(--fg); background: var(--bg); border-top-color: var(--accent);
-      box-shadow: -2px 0 0 #08090c, 2px 0 0 #08090c;
+      color: var(--c-ink); background: var(--c-bg); border-top-color: var(--c-accent);
+      box-shadow: -2px 0 0 var(--c-rail-edge), 2px 0 0 var(--c-rail-edge);
     }
-    .tab[aria-selected="true"] .ic { color: var(--accent); transform: none; }
+    .tab[aria-selected="true"] .ic { color: var(--c-accent); transform: none; }
     @media (prefers-reduced-motion: reduce) { .tab .ic { transition: none; } }
 
     .wrap { padding: 14px 16px 0; }
@@ -106,83 +104,99 @@
 
     /* section cards */
     .card {
-      background: var(--panel); border: 2px solid #14161c; border-radius: 10px;
-      box-shadow: var(--shadow); padding: 13px 13px 14px; margin-bottom: 13px;
+      background: var(--c-panel); border: 2px solid var(--c-edge); border-radius: var(--r-lg);
+      box-shadow: var(--sh-2); padding: 13px 13px 14px; margin-bottom: 13px;
     }
+    /* The section names are the one place the pixel face appears in the body of the
+       window: short, uppercase, and at 8px, the size the face is drawn for, so every
+       stroke lands on a whole pixel. Everything you read stays in the system font. */
     .card-h {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 10.5px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
-      color: var(--accent); margin: 0 0 11px;
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--font-pixel); font-size: 8px; font-weight: 400; line-height: 1;
+      letter-spacing: .5px; text-transform: uppercase;
+      color: var(--c-accent); margin: 2px 0 13px;
     }
-    .card-h::after { content: ""; flex: 1; height: 2px; background: linear-gradient(90deg, var(--line), transparent); border-radius: 2px; }
+    .card-h::after { content: ""; flex: 1; height: 2px; background: linear-gradient(90deg, var(--c-line), transparent); }
 
     .row { margin-bottom: 12px; }
     .row:last-child { margin-bottom: 0; }
-    label.lbl { display: block; color: var(--muted); margin-bottom: 5px; font-size: 12px; }
+    label.lbl { display: block; color: var(--c-muted); margin-bottom: 5px; font-size: 12px; }
     input[type=text], input[type=password], input[type=number], input[type=time], select {
-      width: 100%; background: var(--bg); color: var(--fg);
-      border: 2px solid var(--line); border-radius: 7px; padding: 8px 9px; font: inherit;
+      width: 100%; background: var(--c-bg); color: var(--c-ink);
+      border: 2px solid var(--c-line); border-radius: var(--r-md); padding: 8px 9px; font: inherit;
       transition: border-color .12s;
     }
-    input:focus, select:focus { border-color: var(--accent); }
+    input:focus, select:focus { border-color: var(--c-accent); }
     select { cursor: pointer; }
     .inline { display: flex; align-items: center; gap: 8px; }
     .inline .lbl { margin: 0; flex: none; }
     .inline input[type=number] { width: 70px; }
 
+    /* spacing: the step between a card's rows, named once instead of written out
+       twenty times as inline styles */
+    .mt-sm { margin-top: 7px; }
+    .mt { margin-top: 10px; }
+    .mt-lg { margin-top: 12px; }
+    .wide { width: 100%; }
+
     /* toggle rows */
     .check {
       display: flex; align-items: center; gap: 10px; cursor: pointer;
-      padding: 8px 9px; margin: 0 -4px 7px; border-radius: 7px;
+      padding: 8px 9px; margin: 0 -4px 7px; border-radius: var(--r-md);
       border: 1px solid transparent; transition: background .12s, border-color .12s;
     }
-    .check:hover { background: var(--panel2); border-color: var(--line); }
-    .check:has(input:focus-visible) { background: var(--panel2); border-color: var(--accent); }
+    .check:hover { background: var(--c-panel-2); border-color: var(--c-line); }
+    .check:has(input:focus-visible) { background: var(--c-panel-2); border-color: var(--c-accent); }
     .check:last-child { margin-bottom: 0; }
+    .check.flush { margin: 0; }
+    .check.flush-top { margin-top: 7px; }
+    /* square-shouldered, like everything else here: a pill would be the one round
+       shape in a window built on pixel steps */
     .check input { appearance: none; -webkit-appearance: none; width: 38px; height: 20px; flex: none;
-      background: #14161c; border: 2px solid var(--line); border-radius: 12px; position: relative; cursor: pointer; transition: background .15s, border-color .15s; }
+      background: var(--c-track); border: 2px solid var(--c-line); border-radius: var(--r-sm); position: relative; cursor: pointer; transition: background .15s, border-color .15s; }
     .check input::after { content: ""; position: absolute; top: 1px; left: 1px; width: 14px; height: 14px;
-      background: var(--muted); border-radius: 50%; transition: transform .15s, background .15s; }
-    .check input:checked { background: rgba(232,148,60,.25); border-color: var(--accent); }
-    .check input:checked::after { transform: translateX(18px); background: var(--accent); }
-    .check label, .check > span.t { font-size: 12.5px; color: var(--fg); cursor: pointer; flex: 1; }
-    .check .sub { display: block; color: var(--faint); font-size: 11px; margin-top: 1px; }
+      background: var(--c-muted); border-radius: 2px; transition: transform .15s, background .15s; }
+    .check input:checked { background: var(--c-accent-wash); border-color: var(--c-accent); }
+    .check input:checked::after { transform: translateX(18px); background: var(--c-accent); }
+    .check label, .check > span.t { font-size: 12.5px; color: var(--c-ink); cursor: pointer; flex: 1; }
+    .check .sub { display: block; color: var(--c-faint); font-size: 11px; margin-top: 1px; }
     @media (prefers-reduced-motion: reduce) {
       .check input, .check input::after { transition: none; }
     }
 
     /* range */
-    input[type=range] { width: 100%; appearance: none; -webkit-appearance: none; height: 6px; border-radius: 4px;
-      background: #14161c; border: 1px solid var(--line); }
+    input[type=range] { width: 100%; appearance: none; -webkit-appearance: none; height: 6px; border-radius: var(--r-sm);
+      background: var(--c-track); border: 1px solid var(--c-line); }
     input[type=range]::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 16px; height: 16px;
-      border-radius: 4px; background: var(--accent); border: 2px solid #0f1116; box-shadow: 1px 1px 0 rgba(0,0,0,.4); cursor: pointer; }
+      border-radius: var(--r-sm); background: var(--c-accent); border: 2px solid var(--c-stroke); box-shadow: 1px 1px 0 var(--c-shadow); cursor: pointer; }
 
     /* buttons */
     button {
-      background: var(--accent); color: #1a1c22; border: 2px solid #0f1116; border-radius: 7px;
+      background: var(--c-accent); color: var(--c-accent-ink); border: 2px solid var(--c-stroke); border-radius: var(--r-md);
       padding: 8px 12px; font: inherit; font-weight: 700; cursor: pointer;
-      box-shadow: 2px 2px 0 rgba(0,0,0,.4); transition: transform .06s, box-shadow .06s, background .12s;
+      box-shadow: var(--sh-1); transition: transform .06s, box-shadow .06s, background .12s;
     }
-    button:hover { background: #f2a24a; }
-    button:active { transform: translate(2px,2px); box-shadow: 0 0 0 rgba(0,0,0,.4); }
-    button.ghost { background: var(--panel2); color: var(--fg); font-weight: 600; }
-    button.ghost:hover { background: #313542; }
+    button:hover { background: var(--c-accent-hover); }
+    button:active { transform: translate(2px,2px); box-shadow: none; }
+    button.ghost { background: var(--c-panel-2); color: var(--c-ink); font-weight: 600; }
+    button.ghost:hover { background: var(--c-panel-hover); }
 
     /* coat preview - the one place the app shows you what you are actually picking,
        so it gets a lit stage and a floor to sit on rather than a bare swatch box. */
     .stage {
       display: grid; justify-items: center; margin-top: 12px; padding: 10px 10px 11px;
       background:
-        radial-gradient(130px 62px at 50% 88%, rgba(232,148,60,.14), transparent 70%),
-        linear-gradient(180deg, #1c1f27, #171920);
-      border: 2px solid #14161c; border-radius: 10px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+        radial-gradient(130px 62px at 50% 88%, var(--c-stage-glow), transparent 70%),
+        linear-gradient(180deg, var(--c-stage-top), var(--c-stage-bot));
+      border: 2px solid var(--c-edge); border-radius: var(--r-lg);
+      box-shadow: inset 0 1px 0 var(--c-sheen);
     }
     canvas#coatPreview { display: block; image-rendering: pixelated; }
-    .stage .floor { width: 76%; height: 2px; border-radius: 2px;
-      background: linear-gradient(90deg, transparent, var(--line) 22%, var(--line) 78%, transparent); }
+    .stage .floor { width: 76%; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--c-line) 22%, var(--c-line) 78%, transparent); }
 
-    .hint { color: var(--faint); font-size: 11px; }
+    .hint { color: var(--c-faint); font-size: 11px; }
+    .hint.mt { margin-top: 9px; }
     /* Two columns so a long label like "Send a butterfly" never wraps mid-phrase. */
     .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
     .acts .act { width: 100%; text-align: left; font-size: 12px; padding: 9px 11px; }
@@ -191,40 +205,46 @@
     /* lists (reminders / themes) */
     ul#reminders, #themes, #shortcuts, #todoList { list-style: none; margin: 10px 0 0; padding: 0; }
     ul#reminders li, #themes li, #shortcuts li, #todoList li {
-      display: flex; align-items: center; gap: 9px; background: var(--bg);
-      border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 9px; background: var(--c-bg);
+      border: 1px solid var(--c-line); border-radius: var(--r-md); padding: 7px 9px; margin-bottom: 6px;
     }
-    ul#reminders .t { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 700; }
-    #shortcuts .t { color: var(--accent); font-weight: 700; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #todoList li.done .m { color: var(--faint); text-decoration: line-through; }
-    #todoList input[type=checkbox] { margin: 0; accent-color: var(--accent); }
+    ul#reminders .t { color: var(--c-accent); font-variant-numeric: tabular-nums; font-weight: 700; }
+    #shortcuts .t { color: var(--c-accent); font-weight: 700; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #todoList li.done .m { color: var(--c-faint); text-decoration: line-through; }
+    #todoList input[type=checkbox] { margin: 0; accent-color: var(--c-accent); }
     ul#reminders .m, #themes .m, #shortcuts .m, #todoList .m { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-    #shortcuts .x, #todoList .x, ul#reminders .x, #themes .x { color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 15px; line-height: 1; }
-    #shortcuts .x:hover, #todoList .x:hover, ul#reminders .x:hover, #themes .x:hover { color: #ff6b78; }
-    .empty { color: var(--faint); font-size: 12px; font-style: italic; }
-    #themes .sw { width: 18px; height: 18px; border-radius: 5px; border: 2px solid #000; flex: none; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+    #shortcuts .x, #todoList .x, ul#reminders .x, #themes .x { color: var(--c-muted); cursor: pointer; padding: 0 4px; font-size: 15px; line-height: 1; }
+    #shortcuts .x:hover, #todoList .x:hover, ul#reminders .x:hover, #themes .x:hover { color: var(--c-danger); }
+    .empty { color: var(--c-faint); font-size: 12px; font-style: italic; }
+    #themes .sw { width: 18px; height: 18px; border-radius: var(--r-sm); border: 2px solid var(--c-stroke); flex: none; box-shadow: 0 0 0 1px var(--c-ring); }
 
     .rem-add { display: flex; gap: 6px; }
     .rem-add input[type=time] { width: 98px; flex: none; }
     .rem-add input[type=text] { flex: 1; }
+    .rem-recur { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    /* shown by settings-renderer.js (style.display) only for a weekly reminder */
+    .day-picker { display: none; gap: 4px; }
+    .day-picker .day { width: 24px; height: 24px; padding: 0; border-radius: var(--r-sm); font-size: 11px; font-weight: 400; opacity: .4; }
+    .day-picker .day[aria-pressed="true"] { opacity: 1; font-weight: 700; }
 
     .t-io { display: flex; gap: 6px; margin: 10px 0 0; }
     .t-io button { flex: 1; }
-    .theme-add { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; }
-    .theme-add summary { cursor: pointer; color: var(--accent); font-size: 12px; font-weight: 600; margin-bottom: 9px; list-style: none; }
+    .theme-add { margin-top: 10px; border-top: 1px dashed var(--c-line); padding-top: 10px; }
+    .theme-add summary { cursor: pointer; color: var(--c-accent); font-size: 12px; font-weight: 600; margin-bottom: 9px; list-style: none; }
     .theme-add summary::-webkit-details-marker { display: none; }
     .theme-add summary::before { content: "＋ "; }
     .theme-add[open] summary::before { content: "－ "; }
     .t-grid { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
     .t-grid input[type=text] { flex: 1; min-width: 110px; }
-    .t-check { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
+    .t-check { display: flex; align-items: center; gap: 5px; color: var(--c-muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
     .t-colors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-bottom: 10px; }
-    .t-colors label { display: flex; flex-direction: column; font-size: 10px; color: var(--muted); gap: 3px; align-items: center; }
-    .t-colors input[type=color] { width: 100%; height: 26px; padding: 0; border: 2px solid var(--line); border-radius: 6px; background: var(--bg); cursor: pointer; }
+    .t-colors label { display: flex; flex-direction: column; font-size: 10px; color: var(--c-muted); gap: 3px; align-items: center; }
+    .t-colors input[type=color] { width: 100%; height: 26px; padding: 0; border: 2px solid var(--c-line); border-radius: var(--r-md); background: var(--c-bg); cursor: pointer; }
 
     .foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0 16px; margin-top: 4px; }
     .foot .hint { display: flex; align-items: center; gap: 6px; }
-    .foot .hint::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 6px var(--good); }
+    /* square, like a status LED on a pixel display, not a soft glowing dot */
+    .foot .hint::before { content: ""; width: 6px; height: 6px; background: var(--c-good); }
   </style>
 </head>
 <body>
@@ -300,7 +320,7 @@
             <label>Inner ear<input type="color" id="c_inner" value="#f0b6a0" /></label>
             <label>Outline<input type="color" id="c_outline" value="#2e323d" /></label>
           </div>
-          <button id="addTheme" style="width:100%;">Add coat</button>
+          <button id="addTheme" class="wide">Add coat</button>
         </details>
       </section>
     </section>
@@ -315,14 +335,14 @@
         <label class="check"><input type="checkbox" id="moodOn" /><span class="t">Mood reactions<span class="sub">zoomies &amp; startle reactions</span></span></label>
         <label class="check"><input type="checkbox" id="roamOn" /><span class="t">Wander<span class="sub">roams its play area</span></span></label>
         <label class="check"><input type="checkbox" id="floorLock" /><span class="t">Stay on the floor<span class="sub">strolls along the bottom line; never wanders up</span></span></label>
-        <div class="row inline" style="margin-top:10px;">
+        <div class="row inline mt">
           <label class="lbl" for="restSide">Rest corner</label>
           <select id="restSide">
             <option value="right">Bottom-right</option>
             <option value="left">Bottom-left</option>
           </select>
         </div>
-        <label class="check" style="margin-top:7px;"><input type="checkbox" id="workMode" /><span class="t">Work mode<span class="sub" id="workModeSub">parks the pet in its rest corner while you work</span></span></label>
+        <label class="check flush-top"><input type="checkbox" id="workMode" /><span class="t">Work mode<span class="sub" id="workModeSub">parks the pet in its rest corner while you work</span></span></label>
         <label class="check"><input type="checkbox" id="reducedMotion" /><span class="t">Reduced motion<span class="sub">calmer: no wandering or bouncing</span></span></label>
       </section>
 
@@ -337,13 +357,13 @@
           <button class="ghost act" data-act="loaf">Settle down 😴</button>
           <button class="ghost act" data-act="home">Send it home 🏠</button>
         </div>
-        <div class="hint" id="actionsHint" style="margin-top:9px;">Nudge your pet. It goes back to its own routine afterwards.</div>
+        <div class="hint mt" id="actionsHint">Nudge your pet. It goes back to its own routine afterwards.</div>
       </section>
 
       <section class="card">
         <div class="card-h">window</div>
         <label class="check"><input type="checkbox" id="onTop" /><span class="t">Always on top<span class="sub" id="onTopSub">keep the pet above other windows</span></span></label>
-        <div class="row" style="margin-top:10px;"><button class="ghost" id="clearArea" style="width:100%;">Clear play area (use whole screen)</button></div>
+        <div class="row mt"><button class="ghost wide" id="clearArea">Clear play area (use whole screen)</button></div>
       </section>
 
       <section class="card">
@@ -360,7 +380,7 @@
         <label class="check"><input type="checkbox" id="soundOn" /><span class="t">Sound<span class="sub" id="soundSub">meow &amp; purr (synthesized)</span></span></label>
         <label class="check"><input type="checkbox" id="notifyOn" /><span class="t">Desktop alerts<span class="sub">also pop a desktop notification for reminders &amp; messages</span></span></label>
         <label class="check"><input type="checkbox" id="quietOn" /><span class="t">Quiet hours<span class="sub">hush sound &amp; desktop alerts overnight (the bubble still shows)</span></span></label>
-        <div class="row inline" style="margin-top:10px;">
+        <div class="row inline mt">
           <label class="lbl" for="quietStart">From</label>
           <input type="time" id="quietStart" />
           <label class="lbl" for="quietEnd">to</label>
@@ -369,7 +389,7 @@
         <label class="check"><input type="checkbox" id="focusOn" /><span class="t">Don't interrupt me while I'm busy<span class="sub">holds email &amp; reminders back while you're in a meeting, then sums them up in one line afterwards</span></span></label>
         <label class="check"><input type="checkbox" id="focusMeetings" /><span class="t">Use my calendar<span class="sub">treat an event that's happening right now as "busy" (needs the calendar set up under Alerts)</span></span></label>
         <label class="check"><input type="checkbox" id="focusDigest" /><span class="t">Tell me what I missed<span class="sub">one summary when you're free again; without it, held messages wait quietly in the tray recap</span></span></label>
-        <div class="row" style="margin-top:10px;">
+        <div class="row mt">
           <label class="lbl" for="volume">Volume <span class="hint" id="volumeVal"></span></label>
           <input type="range" id="volume" min="0" max="100" step="5" />
         </div>
@@ -378,7 +398,7 @@
       <section class="card">
         <div class="card-h">lobby jam</div>
         <label class="check"><input type="checkbox" id="lobbyJamOn" /><span class="t">🎸 Lobby Jam<span class="sub">lo-fi focus music your pet plays, synthesized live, no files</span></span></label>
-        <div class="row inline" style="margin-top:10px;">
+        <div class="row inline mt">
           <label class="lbl" for="lobbyJamMood">Mood</label>
           <select id="lobbyJamMood">
             <option value="cozy">Cozy café</option>
@@ -406,7 +426,7 @@
       <section class="card">
         <div class="card-h">pomodoro</div>
         <label class="check"><input type="checkbox" id="pomoOn" /><span class="t">Pomodoro timer<span class="sub" id="pomoSub">a pixel timer floats next to the pet; it stretches with you on breaks</span></span></label>
-        <div class="row inline" style="margin-top:10px;">
+        <div class="row inline mt">
           <label class="lbl" for="pomoFocus">Focus</label>
           <input type="number" id="pomoFocus" min="5" max="120" step="5" />
           <span class="hint">min</span>
@@ -419,22 +439,22 @@
       <section class="card">
         <div class="card-h">reminders</div>
         <span class="hint" id="remindersHint">The pet says your message at a set time. Placeholders: {name} {time} {date}</span>
-        <div class="rem-add" style="margin-top:10px;">
+        <div class="rem-add mt">
           <input type="time" id="newTime" />
           <input type="text" id="newMsg" maxlength="80" placeholder="Drink water, {name}!" />
           <button id="addReminder">Add</button>
         </div>
-        <div class="rem-recur" style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <div class="rem-recur">
           <select id="newRecur">
             <option value="daily">Every day</option>
             <option value="weekdays">Weekdays</option>
             <option value="weekly">Weekly…</option>
             <option value="once">Once</option>
           </select>
-          <div id="dayPicker" style="display:none; gap:4px;"></div>
+          <div id="dayPicker" class="day-picker"></div>
         </div>
         <ul id="reminders"></ul>
-        <div class="row" style="margin-top:12px;">
+        <div class="row mt-lg">
           <label class="lbl" for="pinnedNote" id="pinnedNoteLabel">Pinned note (leave empty to hide)</label>
           <input type="text" id="pinnedNote" maxlength="80" placeholder="Ship the demo by Friday!" />
         </div>
@@ -446,12 +466,12 @@
       <section class="card">
         <div class="card-h">quick tools</div>
         <span class="hint" id="toolsHint">Open, note, time, calculate and search from one box.</span>
-        <div class="row inline" style="margin-top:10px;">
+        <div class="row inline mt">
           <label class="lbl" for="toolsHotkey">Hotkey</label>
           <select id="toolsHotkey"></select>
         </div>
         <label class="check"><input type="checkbox" id="toolsRightClick" /><span class="t">Right-click the pet opens it<span class="sub">Shift+right-click still changes the coat</span></span></label>
-        <div class="row inline" style="margin-top:10px;">
+        <div class="row inline mt">
           <label class="lbl" for="toolsSearch">Search with</label>
           <select id="toolsSearch">
             <option value="google">Google</option>
@@ -464,11 +484,11 @@
       <section class="card">
         <div class="card-h">pinned shortcuts</div>
         <span class="hint">Sites, folders and apps you open every day. Type their name in the launcher.</span>
-        <div class="rem-add" style="margin-top:10px;">
+        <div class="rem-add mt">
           <input type="text" id="scTarget" maxlength="1000" placeholder="mail.google.com or C:\Projects" />
           <button id="scAdd">Pin</button>
         </div>
-        <div class="acts" style="margin-top:7px;">
+        <div class="acts mt-sm">
           <button id="scPickFile">Pin a file or app…</button>
           <button id="scPickFolder">Pin a folder…</button>
         </div>
@@ -483,8 +503,8 @@
           <button id="todoAdd">Add</button>
         </div>
         <ul id="todoList"></ul>
-        <div class="row inline" style="margin-top:10px;">
-          <label class="check" style="margin:0;"><input type="checkbox" id="todoNudgeOn" /><span class="t">Nudge me at<span class="sub">if some are still open</span></span></label>
+        <div class="row inline mt">
+          <label class="check flush"><input type="checkbox" id="todoNudgeOn" /><span class="t">Nudge me at<span class="sub">if some are still open</span></span></label>
           <input type="time" id="todoNudge" />
         </div>
       </section>
@@ -494,7 +514,7 @@
         <label class="check"><input type="checkbox" id="toolsClipboard" /><span class="t">Clipboard history<span class="sub">last 20 copies, in memory only and never saved. Skips passwords and keys, and clears when you lock the screen or quit</span></span></label>
         <label class="check"><input type="checkbox" id="toolsBattery" /><span class="t">Low battery alert<span class="sub">the pet speaks up once at 20% while unplugged</span></span></label>
         <label class="check"><input type="checkbox" id="toolsEyeRest" /><span class="t">Eye-rest nudges<span class="sub">every 20 minutes of screen time, look 20 feet away for 20 seconds</span></span></label>
-        <div class="acts" style="margin-top:10px;">
+        <div class="acts mt">
           <button id="openNotes">Open quick notes</button>
         </div>
       </section>
@@ -521,7 +541,7 @@
       <section class="card">
         <div class="card-h">updates</div>
         <label class="check"><input type="checkbox" id="updCheck" /><span class="t">Check for updates<span class="sub">off unless you turn it on. When on, the app asks GitHub for the latest release every 6 hours. GitHub sees your IP address and your app and OS versions, as with any download. The app adds no ID of its own. Windows installs the update when you quit; on a Mac the pet tells you where to download it</span></span></label>
-        <div class="row inline" style="margin-top:10px;">
+        <div class="row inline mt">
           <label class="lbl" for="updChannel">Channel</label>
           <select id="updChannel">
             <option value="stable">Stable</option>
@@ -535,7 +555,7 @@
       <section class="card">
         <div class="card-h">help</div>
         <span class="hint">Something broken? The report shows you every word before your browser opens GitHub. Nothing is sent by the app.</span>
-        <div class="acts" style="margin-top:10px;">
+        <div class="acts mt">
           <button id="reportProblem">Report a problem…</button>
         </div>
       </section>
@@ -546,7 +566,7 @@
       <section class="card">
         <div class="card-h">email</div>
         <label class="check"><input type="checkbox" id="emailOn" /><span class="t">Unread-mail alerts<span class="sub" id="emailSub">the pet tells you when new mail arrives (IMAP)</span></span></label>
-        <div class="row" style="margin-top:10px;"><label class="lbl" for="emailUser">Email address</label><input type="text" id="emailUser" placeholder="you@gmail.com" /></div>
+        <div class="row mt"><label class="lbl" for="emailUser">Email address</label><input type="text" id="emailUser" placeholder="you@gmail.com" /></div>
         <div class="row"><label class="lbl" for="emailPass">App password <span class="hint" id="emailPassState"></span></label><input type="password" id="emailPass" placeholder="paste an app-password" /></div>
         <div class="row inline">
           <label class="lbl" for="emailHost">Server</label>
@@ -560,7 +580,7 @@
           <span class="hint">min</span>
           <button class="ghost" id="emailTest">Test</button>
         </div>
-        <div class="row" style="margin-top:10px;"><label class="lbl" for="emailVip">Always tell me about</label><input type="text" id="emailVip" placeholder="boss@work.com, @family.com" /></div>
+        <div class="row mt"><label class="lbl" for="emailVip">Always tell me about</label><input type="text" id="emailVip" placeholder="boss@work.com, @family.com" /></div>
         <span class="hint">These reach you even mid-meeting, when everything else waits. One per comma; a bare domain like @acme.com covers everyone there.</span>
         <span class="hint" id="emailStatus">Gmail server is imap.gmail.com (not www.gmail.com). Use an app-password, not your login password.</span>
       </section>
@@ -568,7 +588,7 @@
       <section class="card">
         <div class="card-h">calendar</div>
         <label class="check"><input type="checkbox" id="calOn" /><span class="t">Event nudges<span class="sub" id="calSub">the pet reminds you before calendar events (.ics)</span></span></label>
-        <div class="row" style="margin-top:10px;"><label class="lbl" for="calUrl">Secret .ics URL</label><input type="password" id="calUrl" placeholder="https://…/basic.ics" /></div>
+        <div class="row mt"><label class="lbl" for="calUrl">Secret .ics URL</label><input type="password" id="calUrl" placeholder="https://…/basic.ics" /></div>
         <div class="row inline">
           <label class="lbl" for="calLead">Nudge</label>
           <input type="number" id="calLead" min="0" max="1440" />

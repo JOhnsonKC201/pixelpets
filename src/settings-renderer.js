@@ -247,14 +247,17 @@ $('pinnedNote').addEventListener('input', () => {
 const selectedDays = new Set([1, 2, 3, 4, 5]);
 function paintDays() {
   const dp = $('dayPicker'); if (!dp) return;
-  for (const b of dp.children) { const on = selectedDays.has(Number(b.dataset.dow)); b.style.opacity = on ? '1' : '0.4'; b.style.fontWeight = on ? '700' : '400'; }
+  // The look lives in settings.html (.day[aria-pressed]); this only says which days are on,
+  // which a screen reader also announces.
+  for (const b of dp.children) b.setAttribute('aria-pressed', String(selectedDays.has(Number(b.dataset.dow))));
 }
 function buildDayPicker() {
   const dp = $('dayPicker'); if (!dp || dp.childElementCount) return;
   const dn = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const full = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   for (let d = 0; d < 7; d++) {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = dn[d]; b.dataset.dow = String(d);
-    b.style.cssText = 'width:24px;height:24px;padding:0;border-radius:6px;font-size:11px;cursor:pointer;';
+    b.className = 'day'; b.setAttribute('aria-label', full[d]);   // "S" twice and "T" twice mean nothing read aloud
     b.onclick = () => { const dow = Number(b.dataset.dow); if (selectedDays.has(dow)) selectedDays.delete(dow); else selectedDays.add(dow); paintDays(); };
     dp.appendChild(b);
   }
