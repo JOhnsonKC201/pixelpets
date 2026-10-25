@@ -3,6 +3,7 @@
 // exits. Runs in its own process so a hung socket or library crash can never
 // freeze the overlay. The password is used in-memory only - never logged.
 const { ImapFlow } = require('imapflow');
+const { cleanText } = require('./clean-text');
 
 // Turn an ImapFlow error into a sentence the Settings window can show.
 function classify(e) {
@@ -52,15 +53,6 @@ function imapOptions(creds) {
     greetingTimeout: 8000,
     socketTimeout: 30000,
   };
-}
-
-// Sender and subject are written by whoever sent the mail. Control characters,
-// bidi overrides and zero-width marks can make a toast read as something it is not
-// ("fdp.exe" shown as "exe.pdf", a hidden break in "PayPal"), so they go.
-const SPOOF_CHARS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
-function cleanText(s, max) {
-  return String(s == null ? '' : s).replace(SPOOF_CHARS, (c) => (/\s/.test(c) ? ' ' : ''))
-    .replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
 // Only when started as a worker. Required from a test, just expose the helpers.
