@@ -134,7 +134,7 @@ function eventsFrom(data, now) {
     // back to the 30 minutes that is the overwhelmingly common default meeting.
     const lenMs = durationOf(ev);
     if (ev.rrule) {
-      let occ = [];
+      let occ;
       try { occ = ev.rrule.between(new Date(floor), new Date(horizon), true) || []; } catch (e) { occ = []; }
       for (const d of occ) {
         const t = d.getTime();
