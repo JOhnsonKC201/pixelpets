@@ -18,6 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { drawText, encodePng } = require('./real-pets.js');
 
 const ROOT = path.join(__dirname, '..');
 const FFMPEG = require('@ffmpeg-installer/ffmpeg').path;
@@ -346,15 +347,20 @@ function cropFor(moveIds, out) {
   return { w, h, x: (W - w) / 2, y: H - h };
 }
 
-function cutClip(name, moveIds, out, { before = [], after = [] } = {}) {
+// `stamp` is a transparent PNG the size of `out`, laid over every frame after the
+// scale, so pixel type stays pixel-exact instead of being resampled with the clip.
+function cutClip(name, moveIds, out, { before = [], after = [], stamp = null } = {}) {
   const crop = cropFor(moveIds, out);
   const inputs = moveIds.flatMap((id) => [
     '-start_number', String(TITLE_FRAMES + moveIndex(id) * MOVE_FRAMES),
     '-framerate', String(FPS), '-t', String(HOLD), '-i', path.join(FRAMES, 'f%05d.png')]);
+  if (stamp) inputs.push('-loop', '1', '-i', stamp);
   const joined = moveIds.length > 1
-    ? `${moveIds.map((_, i) => `[${i}:v]`).join('')}concat=n=${moveIds.length}:v=1:a=0,` : '';
+    ? `${moveIds.map((_, i) => `[${i}:v]`).join('')}concat=n=${moveIds.length}:v=1:a=0,` : '[0:v]';
+  // shortest=1: the looped stamp would otherwise keep the output running forever.
+  const overlay = stamp ? `[c];[c][${moveIds.length}:v]overlay=0:0:shortest=1` : '';
   const chain = (fps) => joined + [...before, `crop=${crop.w}:${crop.h}:${crop.x}:${crop.y}`, `fps=${fps}`,
-    `scale=${out.w}:${out.h}:flags=lanczos`, ...after].join(',');
+    `scale=${out.w}:${out.h}:flags=lanczos`, ...after].join(',') + overlay;
   const base = path.join(ROOT, 'assets', name);
   fs.mkdirSync(path.dirname(base), { recursive: true });
 
@@ -371,17 +377,41 @@ function clips() {
   const have = fs.existsSync(FRAMES) ? fs.readdirSync(FRAMES).filter((x) => x.endsWith('.png')).length : 0;
   if (have < TITLE_FRAMES + MOVES.length * MOVE_FRAMES) { console.error('no frames yet; run `capture` first'); process.exit(1); }
 
-  // The wordmark sits in the left third, which every banner move leaves empty.
+  // The wordmark sits in the left third, which every banner move leaves empty. It is
+  // a transparent layer in the project's pixel type (bannerStamp), laid over the
+  // clip, so the first thing on the README matches the site and the card instead of
+  // being set in the system font.
+  const stamp = path.join(path.dirname(FRAMES), 'banner-stamp.png');
+  const st = bannerStamp();
+  fs.writeFileSync(stamp, encodePng(st.rgba, st.w, st.h));
   cutClip('hero-banner', BANNER_MOVES, BANNER, {
     before: [`drawbox=x=${W - CLOCK_W - 16}:y=${FLOOR + 2}:w=${CLOCK_W + 16}:h=${TASKBAR_H - 2}:color=0x0E1017:t=fill`],
-    after: [
-      text('pixelpets', { size: 52, x: 48, y: 118 }),
-      `drawbox=x=50:y=190:w=48:h=3:color=${ORANGE}:t=fill`,
-      text('A CAT OR A DOG THAT', { size: 16, x: 50, y: 208, f: 'semi', colour: 'white@0.82' }),
-      text('LIVES ON YOUR DESKTOP', { size: 16, x: 50, y: 232, f: 'semi', colour: 'white@0.82' }),
-    ],
+    stamp,
   });
   for (const [file, id] of TILES) cutClip(path.join('gallery', file), [id], TILE);
+}
+
+// The banner's wordmark, rule and tagline in the 3x5 pixel face, with a hard
+// one-step shadow (the site's offset shadows, not a blur) so it holds on the photo.
+const SHADOW = [8, 9, 13];
+const TAG_INK = [214, 217, 224];
+function bannerStamp() {
+  const { w, h } = BANNER;
+  const rgba = new Uint8ClampedArray(w * h * 4);
+  const lines = [
+    { text: 'PIXELPETS', x: 48, y: 104, scale: 7, ink: [232, 148, 60] },
+    { text: 'A CAT OR A DOG THAT', x: 50, y: 186, scale: 3, ink: TAG_INK },
+    { text: 'LIVES ON YOUR DESKTOP', x: 50, y: 206, scale: 3, ink: TAG_INK },
+  ];
+  for (const l of lines) {
+    const off = Math.max(1, l.scale / 3);
+    drawText(rgba, w, h, l.text, l.x + off, l.y + off, l.scale, SHADOW);
+    drawText(rgba, w, h, l.text, l.x, l.y, l.scale, l.ink);
+  }
+  const rule = (x, y, c) => { for (let yy = y; yy < y + 4; yy++) for (let xx = x; xx < x + 48; xx++) rgba.set([...c, 255], (yy * w + xx) * 4); };
+  rule(52, 164, SHADOW);
+  rule(50, 162, [232, 148, 60]);
+  return { rgba, w, h };
 }
 
 // ---- dispatch ---------------------------------------------------------------
@@ -402,7 +432,7 @@ const STEPS = { backdrop: buildBackdrop, cards: buildCards, capture, sheet, enco
 // without running ffmpeg or Electron. Guarded so a require() does not start a build.
 module.exports = { MOVES, COAT, W, H, FPS, HOLD, MOVE_FRAMES, TITLE_FRAMES, END_FRAMES,
   FEET, FLOOR, LABEL_BOTTOM, PET_CLEARANCE, frameFor,
-  CLOCK_W, TILES, TILE, BANNER, BANNER_MOVES, cropFor };
+  CLOCK_W, TILES, TILE, BANNER, BANNER_MOVES, cropFor, bannerStamp };
 
 if (require.main === module) {
   const step = process.argv[2] || 'all';

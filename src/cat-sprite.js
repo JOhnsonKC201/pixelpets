@@ -163,9 +163,45 @@ function shadeStr(rgb, f) { const c = (v) => Math.max(0, Math.min(255, Math.roun
 const HALO = '#fbfdff';
 const BODY = new Set(['C', 'K', 'W', 'X', 'I']);
 
+// A line of whole pixels (Bresenham), ends rounded to the grid. The sprite canvas
+// is scaled up nearest-neighbour, so anything drawn on it with smoothing (a
+// stroked line) has its soft edge pixels magnified into a blur; whole pixels stay
+// crisp at every scale. The caller sets fillStyle and globalAlpha.
+function pixelLine(g, x0, y0, x1, y1) {
+  let x = Math.round(x0), y = Math.round(y0);
+  const xe = Math.round(x1), ye = Math.round(y1);
+  const dx = Math.abs(xe - x), dy = -Math.abs(ye - y);
+  const sx = x < xe ? 1 : -1, sy = y < ye ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    g.fillRect(x, y, 1, 1);
+    if (x === xe && y === ye) return;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x += sx; }
+    if (e2 <= dx) { err += dx; y += sy; }
+  }
+}
+
+// Three whiskers a side, fanned from the muzzle. `t` is the animation clock for a
+// slow waft plus a quick twitch every ~5s; t == null draws them at rest, which is
+// what the static previews and the t=0 QA frames want. One copy, so the overlay,
+// the Settings preview and the website cat cannot drift apart.
+function drawWhiskers(g, sp, bob, t) {
+  const moving = t != null;
+  const waft = moving ? Math.sin(t / 1400) * 0.6 : 0;
+  const twitch = moving && (t % 5200) < 200 ? Math.sin(t / 26) * 1.5 : 0;
+  const my = sp.muzzle.y + bob, cl = sp.muzzle.x - 4.5 * CELL, cr = sp.muzzle.x + 4.5 * CELL;
+  g.fillStyle = 'rgb(245,245,245)'; g.globalAlpha = 0.6;
+  for (const [sx, dir] of [[cl, -1], [cr, 1]]) for (let i = 0; i < 3; i++) {
+    const tipY = my + i * 5 - 1 + waft + twitch + (moving ? Math.sin(t / 900 + i) * 0.5 : 0);
+    pixelLine(g, sx, my + i * 3 - 2, sx + dir * 13, tipY);
+  }
+  g.globalAlpha = 1;
+}
+
 // CommonJS export (Node, for scripts/pet-sheet.js). In a browser classic
 // script `module` is undefined, so this is skipped and the declarations above
 // remain available in the shared global scope.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { CELL, inb, setCell, ellipse, triangle, outlineHalo, eyeBox, muzzlePt, buildSprite, composeSit, PATTERNS, BUILDS, PATTERN_BUILD, TABBY, hexToRgb, lerpHex, toRgb, rgbStr, shadeStr, HALO, BODY };
+  module.exports = { CELL, inb, setCell, ellipse, triangle, outlineHalo, eyeBox, muzzlePt, buildSprite, composeSit, PATTERNS, BUILDS, PATTERN_BUILD, TABBY, hexToRgb, lerpHex, toRgb, rgbStr, shadeStr, HALO, BODY, pixelLine, drawWhiskers };
 }

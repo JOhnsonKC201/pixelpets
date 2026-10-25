@@ -56,6 +56,7 @@ const sharedOverlay = {
   ART_FRAMES: 'readonly',
   BODY: 'readonly', G: 'readonly', GC: 'readonly', GR: 'readonly', HALO: 'readonly',
   rgbStr: 'readonly', toRgb: 'readonly', shadeStr: 'readonly', lerpHex: 'readonly',
+  drawWhiskers: 'readonly',
   fillPlaceholders: 'readonly', CLIMB_FRAMES: 'readonly',
   // bubble.js provides the speech-bubble text layout (wrapping + edge clamping):
   layoutBubble: 'readonly', wrapBubbleText: 'readonly', bubbleInnerW: 'readonly',

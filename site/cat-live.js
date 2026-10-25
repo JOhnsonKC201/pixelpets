@@ -93,15 +93,9 @@
       g.fillRect(c * CELL, r * CELL + bob, CELL, CELL);
     }
     g.globalAlpha = 1;
-    g.strokeStyle = 'rgba(245,245,245,0.6)'; g.lineWidth = 1; g.lineCap = 'round';
-    const my = sp.muzzle.y + bob, cl = sp.muzzle.x - 4.5 * CELL, cr = sp.muzzle.x + 4.5 * CELL;
-    // living whiskers: a slow waft plus a quick twitch every ~5s (whiskT==0 => at rest)
-    const waft = Math.sin(whiskT / 1400) * 0.6;
-    const twitch = (whiskT % 5200) < 200 ? Math.sin(whiskT / 26) * 1.5 : 0;
-    for (const [sx, dir] of [[cl, -1], [cr, 1]]) for (let i = 0; i < 3; i++) {
-      const tipY = my + i * 5 - 1 + waft + twitch + Math.sin(whiskT / 900 + i) * 0.5;
-      g.beginPath(); g.moveTo(sx, my + i * 3 - 2); g.lineTo(sx + dir * 13, tipY); g.stroke();
-    }
+    // living whiskers in whole pixels, the same pass as the app (cat-sprite.js);
+    // whiskT==0 is the static/reduced-motion frame, so they sit at rest there
+    drawWhiskers(g, sp, bob, whiskT || null);
     if (blush) {
       g.globalAlpha = 0.52; g.fillStyle = '#ffaab8';
       for (const e of sp.eyes) {
