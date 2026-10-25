@@ -14,11 +14,7 @@
       g.fillStyle = f === 1 ? rgbStr(base) : shadeStr(base, f);
       g.fillRect(c * CELL, r * CELL, CELL, CELL);
     }
-    if (!noWhiskers) {
-      g.strokeStyle = 'rgba(245,245,245,0.6)'; g.lineWidth = 1; g.lineCap = 'round';
-      const my = sp.muzzle.y, cl = sp.muzzle.x - 4.5 * CELL, cr = sp.muzzle.x + 4.5 * CELL;
-      for (const [sx, dir] of [[cl, -1], [cr, 1]]) for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(sx, my + i * 3 - 2); g.lineTo(sx + dir * 13, my + i * 5 - 1); g.stroke(); }
-    }
+    if (!noWhiskers) drawWhiskers(g, sp, 0, null);   // at rest, whole pixels (cat-sprite.js)
     for (const e of sp.eyes) {
       if (!isFinite(e.cx) || e.w <= 0) continue;
       const pw = Math.max(4, Math.round(e.w * 0.46)), ph = Math.max(5, Math.round(e.h * 0.7));

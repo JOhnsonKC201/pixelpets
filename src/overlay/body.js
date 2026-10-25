@@ -40,18 +40,7 @@ function drawCat(g, sp, t, palRGB, o) {
   // A dog with cat whiskers reads as a cat wearing a dog costume, so the whisker
   // pass is skipped entirely and a panting tongue takes its place.
   if (o.panting) drawTongue(g, sp, bob, t, palRGB);
-  if (!typing && !isDog()) {
-    g.strokeStyle = 'rgba(245,245,245,0.6)'; g.lineWidth = 1; g.lineCap = 'round';
-    const my = sp.muzzle.y + bob, cl = sp.muzzle.x - 4.5 * CELL, cr = sp.muzzle.x + 4.5 * CELL;
-    // whiskers are alive: a slow waft plus a quick twitch every ~5s (t==0 on the
-    // contact sheet => no offset, so QA frames stay byte-stable).
-    const waft = Math.sin(t / 1400) * 0.6;
-    const twitch = (t % 5200) < 200 ? Math.sin(t / 26) * 1.5 : 0;
-    for (const [sx, dir] of [[cl, -1], [cr, 1]]) for (let i = 0; i < 3; i++) {
-      const tipY = my + i * 5 - 1 + waft + twitch + Math.sin(t / 900 + i) * 0.5;
-      g.beginPath(); g.moveTo(sx, my + i * 3 - 2); g.lineTo(sx + dir * 13, tipY); g.stroke();
-    }
-  }
+  if (!typing && !isDog()) drawWhiskers(g, sp, bob, t);   // cat-sprite.js: whole pixels, alive
   if (blush) {
     g.globalAlpha = 0.52; g.fillStyle = '#ffaab8';
     for (const e of sp.eyes) {
