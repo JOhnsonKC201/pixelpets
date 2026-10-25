@@ -44,7 +44,8 @@ kept only for what the reel does not cover.
 | `make-reel.js` | `npm run reel` | `assets/pixelpets-reel.mp4`, the launch reel, then `assets/hero-banner.*` and eight `assets/gallery/*` tiles cut from the same frames. Needs Electron to capture. |
 | `make-reel.js clips` | `npm run reel:clips` | Just recuts the banner and tiles from frames already captured. No Electron. |
 | `make-demo-gif.js` | `npm run demo:all` | `assets/coat-carousel.gif` and the two gallery tiles the reel does not film (`eat`, `sing`). The `demo` recipe is legacy and is not part of `all`. |
-| `make-social-card.js` | `npm run social` | `assets/social-card.png`, the GitHub and link-preview card. |
+| `make-social-card.js` | `npm run social` | `assets/social-card.png` (the GitHub and link-preview card) and `assets/showcase.png` (every coat in four poses), plus their copies under `site/assets`. Drawn by the app's own renderer through `real-pets.js`, so they cannot drift from the pet you install. |
+| `real-pets.js` | (module) | Runs the overlay's `drawCat` in `overlay-vm.js` and rasterizes it in Node: real pets for stills, with no Electron. |
 | `make-logo-icons.js` | `npm run icon` | Every app and tray icon, from the master `assets/logo.png`. |
 | `logo-source.js` | library | Loads and rescales `logo.png`, and decodes PNGs for the climb slicer. |
 | `settings-glyphs.js` | `node scripts/settings-glyphs.js` | Prints the SVG paths for the settings wordmark and tab icons, to paste into `src/settings.html`. A test fails if the two disagree. |
