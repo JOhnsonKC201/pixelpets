@@ -97,14 +97,23 @@ function imapHostFor(email, host) {
   return h;                                                  // custom/unknown host: leave as-is
 }
 
-// Does this sender break through Focus Guard? Matched as a case-insensitive
-// SUBSTRING of the From address, which is what makes "@acme.com" whitelist a whole
-// company and "boss@acme.com" one person, with no pattern syntax to get wrong.
+// Does this sender break through Focus Guard? "boss@acme.com" is one person and
+// must equal the From address; "@acme.com" (or a bare "acme.com") is a company and
+// matches that domain or a subdomain of it. Not a substring: the From header is
+// written by the sender, and "boss@acme.com.evil.net" contains "boss@acme.com".
+// From is also unauthenticated, so VIP is a convenience, never a trust decision.
 // An empty list never matches, so the feature costs nothing until it is used.
 function isVip(address, vip) {
   const a = String(address == null ? '' : address).trim().toLowerCase();
   if (!a || !Array.isArray(vip)) return false;
-  return vip.some((v) => { const n = String(v || '').trim().toLowerCase(); return n && a.includes(n); });
+  const domain = a.slice(a.lastIndexOf('@') + 1);
+  return vip.some((v) => {
+    const n = String(v || '').trim().toLowerCase();
+    if (!n) return false;
+    if (n.indexOf('@') > 0) return a === n;
+    const d = n.replace(/^@/, '');
+    return !!d && (domain === d || domain.endsWith('.' + d));
+  });
 }
 
 // What the pet actually says about new mail. A count on its own still makes you go

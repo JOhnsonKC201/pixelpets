@@ -34,25 +34,43 @@ function classify(e) {
   return 'Could not connect to the mailbox.';
 }
 
-// Only when started as a worker. Required from a test, just expose classify.
+function imapOptions(creds) {
+  const secure = !creds || creds.secure !== false;
+  return {
+    host: String((creds && creds.host) || ''),
+    port: Number(creds && creds.port) || 993,
+    secure,
+    // Without TLS from the first byte (port 143), STARTTLS must be required, not
+    // opportunistic: otherwise anyone on the network who strips the STARTTLS
+    // capability gets the LOGIN, password included, in plaintext.
+    ...(secure ? {} : { doSTARTTLS: true }),
+    auth: { user: String((creds && creds.user) || ''), pass: String((creds && creds.pass) || '') },
+    logger: false,
+    emitLogs: false,
+    // fail fast on a wrong/unreachable host instead of hanging the test forever
+    connectionTimeout: 12000,
+    greetingTimeout: 8000,
+    socketTimeout: 30000,
+  };
+}
+
+// Sender and subject are written by whoever sent the mail. Control characters,
+// bidi overrides and zero-width marks can make a toast read as something it is not
+// ("fdp.exe" shown as "exe.pdf", a hidden break in "PayPal"), so they go.
+const SPOOF_CHARS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
+function cleanText(s, max) {
+  return String(s == null ? '' : s).replace(SPOOF_CHARS, (c) => (/\s/.test(c) ? ' ' : ''))
+    .replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+// Only when started as a worker. Required from a test, just expose the helpers.
 if (require.main === module || process.parentPort) {
 const { onJob, reply, exitSoon } = require('./worker-port');
 onJob(async (creds) => {
   const send = reply;
   let client = null;
   try {
-    client = new ImapFlow({
-      host: String((creds && creds.host) || ''),
-      port: Number(creds && creds.port) || 993,
-      secure: !creds || creds.secure !== false,
-      auth: { user: String((creds && creds.user) || ''), pass: String((creds && creds.pass) || '') },
-      logger: false,
-      emitLogs: false,
-      // fail fast on a wrong/unreachable host instead of hanging the test forever
-      connectionTimeout: 12000,
-      greetingTimeout: 8000,
-      socketTimeout: 30000,
-    });
+    client = new ImapFlow(imapOptions(creds));
     await client.connect();
     const status = await client.status('INBOX', { unseen: true });
     const unread = (status && status.unseen) | 0;
@@ -73,9 +91,9 @@ onJob(async (creds) => {
             const from = env && Array.isArray(env.from) ? env.from[0] : null;
             if (env) {
               latest = {
-                address: String((from && from.address) || '').slice(0, 160),
-                name: String((from && from.name) || '').slice(0, 80),
-                subject: String(env.subject || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+                address: cleanText(from && from.address, 160),
+                name: cleanText(from && from.name, 80),
+                subject: cleanText(env.subject, 120),
               };
             }
           }
@@ -95,4 +113,4 @@ onJob(async (creds) => {
 setTimeout(() => process.exit(0), 30000);
 }
 
-module.exports = { classify };
+module.exports = { classify, imapOptions, cleanText };
