@@ -8,7 +8,26 @@
 // shading, same eyes and whiskers as the app, as long as the pose only paints
 // rectangles (open eyes, no strokes), which every pose used below does.
 'use strict';
+const zlib = require('zlib');
 const { loadOverlay } = require('./overlay-vm.js');
+
+// RGBA to PNG, no dependencies (the same encoder the other generators carry).
+function encodePng(rgba, w, h) {
+  const table = new Int32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; table[n] = c; }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    let crc = -1; for (const byte of body) crc = table[(crc ^ byte) & 255] ^ (crc >>> 8);
+    const crcB = Buffer.alloc(4); crcB.writeInt32BE((crc ^ -1) | 0);
+    return Buffer.concat([len, body, crcB]);
+  };
+  const ih = Buffer.alloc(13); ih.writeUInt32BE(w, 0); ih.writeUInt32BE(h, 4); ih[8] = 8; ih[9] = 6;
+  const raw = Buffer.alloc(h * (w * 4 + 1));
+  for (let y = 0; y < h; y++) Buffer.from(rgba.buffer, rgba.byteOffset + y * w * 4, w * 4).copy(raw, y * (w * 4 + 1) + 1);
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih),
+    chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
+}
 
 // ---- pets -------------------------------------------------------------------
 const POSES = {
@@ -232,4 +251,4 @@ function composeShowcase(pets) {
   return { rgba: buf, w, h };
 }
 
-module.exports = { loadPets, renderPet, bounds, textWidth, drawText, CARD, cardLayout, composeCard, SHEET, composeShowcase };
+module.exports = { loadPets, renderPet, bounds, textWidth, drawText, encodePng, CARD, cardLayout, composeCard, SHEET, composeShowcase };

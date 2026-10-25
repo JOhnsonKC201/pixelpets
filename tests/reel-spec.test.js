@@ -132,3 +132,18 @@ test('every gallery tile the README shows is one the reel cuts', () => {
       + 'Add the move to MOVES and TILES in scripts/make-reel.js rather than drawing it by hand.');
   }
 });
+
+test('the banner wordmark is pixel type in the left third, clear of the pet', () => {
+  const stamp = reel.bannerStamp();
+  assert.deepStrictEqual([stamp.w, stamp.h], [reel.BANNER.w, reel.BANNER.h]);
+  let painted = 0, maxX = 0;
+  for (let y = 0; y < stamp.h; y++) for (let x = 0; x < stamp.w; x++) {
+    if (stamp.rgba[(y * stamp.w + x) * 4 + 3] === 0) continue;
+    painted += 1; maxX = Math.max(maxX, x);
+  }
+  assert.ok(painted > 500, 'the wordmark and tagline were drawn');
+  assert.ok(maxX < stamp.w / 3, `text reaches x=${maxX}, into the middle where the pet stands`);
+  // Pixel type means hard edges: every painted pixel is fully opaque, never a
+  // half-covered anti-aliased edge.
+  for (let i = 3; i < stamp.rgba.length; i += 4) assert.ok(stamp.rgba[i] === 0 || stamp.rgba[i] === 255);
+});
