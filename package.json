@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
-    "imapflow": "^2.9.1",
+    "imapflow": "^2.10.0",
     "node-ical": "^0.27.3",
     "uiohook-napi": "^1.5.5"
   },
