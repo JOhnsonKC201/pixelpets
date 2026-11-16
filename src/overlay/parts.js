@@ -17,6 +17,7 @@ const OVERLAY_PARTS = [
   'play.js',
   'climb.js',
   'visitors.js',
+  'weather.js',
   'frame.js',
   'input.js',
 ];
