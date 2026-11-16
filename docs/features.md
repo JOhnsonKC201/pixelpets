@@ -60,6 +60,34 @@ npm run poses:cat   # previews/cat-poses.png - 14 coats x 11 activities
 npm run sheet:dog   # previews/dog-sheet.png - the five base poses only
 ```
 
+### Seasonal weather
+
+The pet has a little weather of its own, picked from today's date.
+
+| Season | Around the pet |
+|--------|----------------|
+| Winter (Dec to Feb) | Light snow. Some settles on the floor beside it and some lands on the pet, and once its coat is full it shakes the snow off with a squeezed blink and a flick of the tail. |
+| Autumn (Sep to Nov) | Leaves tumble down and lie on the floor for a while before they fade. |
+| Spring (Mar to May) | Blossom petals drift past on a breeze. |
+| Summer (Jun to Aug) | Fireflies blink around it, but only after 7pm and before 5am. A summer afternoon is just an afternoon. |
+
+When the pet glances around while it idles, it often watches whatever is falling
+nearest its face.
+
+It is sparse on purpose. It stays in a small band around the pet rather than
+across your screen, and it never makes the pet draw any faster, so an idle pet
+costs the same with weather as without. Work mode and Focus Guard stop it, and
+whatever is already falling is allowed to land first. Reduced motion and low
+power turn it off at once.
+
+Pick it in **Settings > Play > Weather**: *Follow the seasons* (the default),
+one kind all year round, or *Off*. South of the equator, set **Seasons** to
+*Southern hemisphere* so December brings fireflies instead of snow.
+
+```bash
+npx electron . --shot --weather=snow   # _render.png with a snowfall already underway
+```
+
 ## Coats and pixel art
 
 - 14 coat patterns: Orange, Mackerel, and Brown tabby, Siamese, Tuxedo, Black,
