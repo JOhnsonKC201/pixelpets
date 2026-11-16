@@ -9,12 +9,14 @@ test('a normal launch forces nothing', () => {
   assert.strictEqual(cli.REEL, false);
   assert.strictEqual(cli.stateArg, '');
   assert.strictEqual(cli.noteArg, '');
+  assert.strictEqual(cli.weatherArg, '');
   assert.strictEqual(cli.shotAtMs, 700);
 });
 
 test('preview flags are read from --name=value', () => {
-  const cli = parseCli(['--shot', '--state=hunt', '--pattern=tuxedo', '--dir=up', '--species=dog', '--at=1200']);
+  const cli = parseCli(['--shot', '--state=hunt', '--pattern=tuxedo', '--dir=up', '--species=dog', '--weather=snow', '--at=1200']);
   assert.strictEqual(cli.SHOT, true);
+  assert.strictEqual(cli.weatherArg, 'snow');
   assert.strictEqual(cli.stateArg, 'hunt');
   assert.strictEqual(cli.patternArg, 'tuxedo');
   assert.strictEqual(cli.dirArg, 'up');

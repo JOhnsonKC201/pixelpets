@@ -29,6 +29,7 @@ function parseCli(argv) {
     patternArg: valueOf('pattern'),
     dirArg: valueOf('dir'),           // force climb direction (up|down) for --shot previews
     speciesArg: valueOf('species'),   // force cat|dog for --shot previews (the overlay reads ?species=)
+    weatherArg: valueOf('weather'),   // force snow|leaves|petals|fireflies for --shot previews (src/overlay/weather.js)
     // `--note=<text>` pins a speech bubble open for a --shot capture, so bubble
     // wrapping and edge clamping can be eyeballed against a real font.
     noteArg: restOf('note'),
