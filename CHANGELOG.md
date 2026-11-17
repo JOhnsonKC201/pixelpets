@@ -4,6 +4,11 @@ Notable changes to **pixelpets**. All art and sound are original/procedural (no 
 
 ## [Unreleased]
 
+### Seasonal weather
+- **The pet has weather of its own.** Light snow in winter, leaves in autumn, blossom petals in spring and fireflies on summer nights, picked from the date and kept to a small patch around the pet. Snow that lands on the pet piles up until it shakes it off, and an idle pet watches whatever is falling past its face.
+- **It never gets in the way.** It is sparse, it does not raise the frame rate, work mode and Focus Guard stop it, and reduced motion and low power turn it off. Settings > Play > Weather picks a season by hand or switches it off, and **Seasons** flips the calendar for the southern hemisphere.
+- **`--weather=snow|leaves|petals|fireflies`** renders a `--shot` preview with the weather already underway.
+
 ### Security
 - **Port 143 mail requires STARTTLS.** It used to upgrade only when the server offered to, so someone on the same network who hid the offer got your app password in plaintext. Now the login fails instead.
 - **VIP senders match exactly.** `boss@acme.com.evil.net` no longer passes as `boss@acme.com` and skips Focus Guard. An `@acme.com` entry covers that domain and its subdomains, and a full address covers that one person. Entries that relied on matching part of an address (`boss`, `boss@`) need the full address now.

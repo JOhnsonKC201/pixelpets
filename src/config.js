@@ -51,6 +51,8 @@ const DEFAULTS = {
   restSide: 'right',   // which bottom corner is home (spawn + where roaming drifts back to): 'left' | 'right'
   floorLock: true,     // pin the cat to the taskbar/Dock line: it strolls left/right but never wanders up the screen
   butterflyOn: true,   // a butterfly occasionally flits in and the cat plays with it; off = no visits
+  weather: 'auto',     // seasonal weather around the pet: 'auto' follows the date, 'off', or one kind always (see WEATHER_SETTINGS)
+  hemisphere: 'north', // whose seasons 'auto' follows: December is winter in the north, summer in the south
   workMode: false,     // "I'm working": park in the rest corner on the taskbar + hide the butterfly, roaming, cursor-chase, startle-bolt, and leaf-play
   volume: 100,         // master sound volume 0-100
   reducedMotion: false,// calm mode: no roaming/bouncing/screen-glow
@@ -93,6 +95,9 @@ const DEFAULTS = {
 // a typo can never register something that swallows a key the user needs.
 const HOTKEYS = ['CommandOrControl+Shift+Space', 'CommandOrControl+Alt+Space', 'CommandOrControl+Shift+K', 'Alt+Space', 'off'];
 const SEARCH_ENGINES = ['google', 'duckduckgo', 'bing'];
+// The weather picker in Settings. The four kinds must match WEATHER_KINDS in
+// src/overlay/weather.js; tests/weather.test.js holds the two lists together.
+const WEATHER_SETTINGS = ['auto', 'off', 'snow', 'leaves', 'petals', 'fireflies'];
 
 function filePath() {
   return path.join(app.getPath('userData'), 'settings.json');
@@ -138,6 +143,8 @@ function normalize(cfg) {
     restSide: c.restSide === 'left' ? 'left' : 'right',
     floorLock: c.floorLock === undefined ? true : !!c.floorLock,
     butterflyOn: c.butterflyOn === undefined ? true : !!c.butterflyOn,
+    weather: WEATHER_SETTINGS.includes(c.weather) ? c.weather : 'auto',
+    hemisphere: c.hemisphere === 'south' ? 'south' : 'north',
     tipsSeen: !!c.tipsSeen,   // absent (an existing install, or a fresh one) reads as false
     workMode: !!c.workMode,
     volume: clampInt(c.volume, 0, 100, 100),
@@ -315,4 +322,4 @@ function save(cfg, file = filePath()) {
   return clean;
 }
 
-module.exports = { DEFAULTS, HOTKEYS, SEARCH_ENGINES, SCHEMA_VERSION, load, save, normalize, migrate, makeId, coatAfterThemeRemoval, filePath };
+module.exports = { DEFAULTS, HOTKEYS, SEARCH_ENGINES, WEATHER_SETTINGS, SCHEMA_VERSION, load, save, normalize, migrate, makeId, coatAfterThemeRemoval, filePath };

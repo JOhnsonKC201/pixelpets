@@ -65,6 +65,8 @@ Mostly it just reacts to you. Petting, dragging, typing and scrolling each get t
 
 It stays out of your way. You can click straight through everything except the pet itself, and when you're in a meeting it parks in its corner and keeps quiet.
 
+It has its own weather, too: light snow in winter, falling leaves in autumn, blossom petals in spring and fireflies on summer nights, all in a small patch around the pet. Pick one or switch it off in Settings.
+
 | What you do | What happens |
 |---|---|
 | Tap it | A quick pet: happy eyes, hearts, a chirp |

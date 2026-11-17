@@ -94,7 +94,7 @@ function trippedOnce() {
 // Preview and capture flags (--shot, --sheet, --reel and their knobs). A normal
 // launch passes none of them; see src/main/cli.js.
 const cli = parseCli(process.argv);
-const { stateArg, patternArg, dirArg, speciesArg, noteArg, SHOT, SHEET, REEL, shotAtMs } = cli;
+const { stateArg, patternArg, dirArg, speciesArg, weatherArg, noteArg, SHOT, SHEET, REEL, shotAtMs } = cli;
 
 // A reel run must not touch the pet the user is actually running. The overlay
 // persists `pos` to localStorage (persistPos, the overlay), localStorage lives in
@@ -190,6 +190,7 @@ function createWindow() {
   if (patternArg) params.push(`pattern=${patternArg}`);
   if (dirArg) params.push(`dir=${dirArg}`);
   if (speciesArg) params.push(`species=${speciesArg}`);
+  if (weatherArg) params.push(`weather=${encodeURIComponent(weatherArg)}`);   // the overlay ignores anything but a known kind
   const { hasFlag } = cli;   // --treat and --treat=1 both count (see src/main/cli.js)
   if (hasFlag('bfly')) params.push('bfly=1');    // force the butterfly visitor (QA shots)
   if (hasFlag('treat')) params.push('treat=1');  // force a dropped treat (QA shots)

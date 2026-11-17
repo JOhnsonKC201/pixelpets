@@ -36,6 +36,7 @@ function draw(t) {
   }
   ctx.clearRect(0, 0, viewW, viewH);
   wantHighFps = true; // default high; the fully-idle calm path lowers it below
+  updateWeather(t, step); drawWeatherBack(t);   // seasonal weather: what has landed lies behind the pet
 
   // cursor velocity (px/ms, smoothed) + raw single-tick displacement (for startle)
   const moved = Math.hypot(cursor.x - prevCursor.x, cursor.y - prevCursor.y);
@@ -477,13 +478,14 @@ function draw(t) {
     // --- liveliness: eased gaze + periodic idle micro-actions ---------------
     const restIdle = calm && !petting && !bodyPet && !typing && !grabbing && !FORCED_STATE && roamUntil < t && agentState === 'idle';
     if (restIdle && !staring) {
+      maybeShakeOffSnow(t);   // a coat full of snow gets shaken off
       const idleScale = (2 - intensity) * (config && config.reducedMotion ? 2 : 1);   // zoomies -> frequent darts; calm -> rarer; Calm mode -> rarer still
       if (nextIdleAt === 0) nextIdleAt = t + (1600 + Math.random() * 2600) * idleScale;
       if (t > nextIdleAt && t >= playUntil && t >= yawnUntil) {   // don't start a new idle action mid-play/yawn
         nextIdleAt = t + (2000 + Math.random() * 3600) * idleScale;
         const roll = Math.random();
         const motionOK = !((config && config.reducedMotion) || lowPower);
-        if (roll < 0.26) { lookTarget = { x: Math.random() * 2 - 1, y: (Math.random() * 2 - 1) * 0.5 }; lookTargetUntil = t + 800 + Math.random() * 1100; }
+        if (roll < 0.26) { lookTarget = weatherGlance() || { x: Math.random() * 2 - 1, y: (Math.random() * 2 - 1) * 0.5 }; lookTargetUntil = t + 800 + Math.random() * 1100; }
         else if (roll < 0.42 && !(config && config.reducedMotion)) { tailFlickT0 = t; }   // skip frequent tail-flicks in Calm mode (falls through to a gentle loaf/blink)
         else if (roll < 0.54 && !(config && config.reducedMotion)) { leanTarget = (Math.random() < 0.5 ? -1 : 1) * 0.045; leanUntil = t + 700; }   // weight shift (skipped in Calm mode)
         else if (roll < 0.70 && band !== 'calm' && motionOK && !workModeOn()) { startPlay(t); }   // bat a drifting leaf with a paw (self-play; never grabs the cursor)
@@ -712,6 +714,7 @@ function draw(t) {
   // Above whichever body is drawn: the bug arrives inside swat range often enough that
   // the cat can already be reared up, and the bat sprite is a head taller than the sit.
   if (bfOn && bfNoticeT0 >= 0 && t - bfNoticeT0 < BF_NOTICE_MS && !grabbing && !typing) drawDoneSpark(pos.x + 2, pos.y - (batting ? BAT_H : SH) - 4, t);
+  drawWeatherFront(t);   // snow, leaves, petals or fireflies still in the air
   drawTreat();   // the fish sits on the floor line, under the hearts
   drawBall(t);   // the tennis ball rides above the floor line (and the muzzle when carried)
   // floating hearts (update + draw; persist after petting ends)
